@@ -1,0 +1,186 @@
+-- phpMyAdmin SQL Dump
+-- version 5.2.1
+-- https://www.phpmyadmin.net/
+--
+-- Počítač: db.dw189.webglobe.com
+-- Vytvořeno: Čtv 29. kvě 2025, 09:51
+-- Verze serveru: 8.0.41-32
+-- Verze PHP: 8.1.32
+
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
+
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+
+--
+-- Databáze: `vyroba_myrec_cz`
+--
+
+-- --------------------------------------------------------
+
+--
+-- Struktura tabulky `orders`
+--
+
+CREATE TABLE `orders` (
+  `id` int NOT NULL,
+  `order_code` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+  `catalog` varchar(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
+  `quantity` int NOT NULL,
+  `order_date` date NOT NULL,
+  `goods_ordered_date` date DEFAULT NULL,
+  `goods_stocked_date` date DEFAULT NULL,
+  `preview_status` enum('Čeká','Schváleno','Zamítnuto') COLLATE utf8mb4_general_ci DEFAULT 'Čeká',
+  `preview_approved_date` date DEFAULT NULL,
+  `shipping_date` date DEFAULT NULL,
+  `production_status` enum('Čekající','V_výrobě','Hotovo') COLLATE utf8mb4_general_ci DEFAULT 'Čekající',
+  `completion_date` datetime DEFAULT NULL,
+  `notes` text COLLATE utf8mb4_general_ci,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struktura tabulky `order_notes`
+--
+
+CREATE TABLE `order_notes` (
+  `id` int NOT NULL,
+  `order_id` int DEFAULT NULL,
+  `note` text COLLATE utf8mb4_general_ci NOT NULL,
+  `author` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struktura tabulky `production_schedule`
+--
+
+CREATE TABLE `production_schedule` (
+  `id` int NOT NULL,
+  `order_id` int DEFAULT NULL,
+  `start_date` date NOT NULL,
+  `end_date` date NOT NULL,
+  `technology_id` int DEFAULT NULL,
+  `is_locked` tinyint(1) DEFAULT '0'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Struktura tabulky `technologies`
+--
+
+CREATE TABLE `technologies` (
+  `id` int NOT NULL,
+  `name` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
+  `color` varchar(7) COLLATE utf8mb4_general_ci NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Vypisuji data pro tabulku `technologies`
+--
+
+INSERT INTO `technologies` (`id`, `name`, `color`) VALUES
+(1, 'Sítotisk', '#10b981'),
+(2, 'Potisk', '#3b82f6'),
+(3, 'Gravírování', '#f59e0b'),
+(4, 'Výšivka', '#eab308'),
+(5, 'Laser', '#06b6d4'),
+(6, 'Pila', '#ff6b6b'),
+(7, 'Broušení', '#4ecdc4'),
+(8, 'Lakování', '#45b7d1'),
+(9, 'Montáž', '#96ceb4'),
+(10, 'Balení', '#feca57');
+
+--
+-- Indexy pro exportované tabulky
+--
+
+--
+-- Indexy pro tabulku `orders`
+--
+ALTER TABLE `orders`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `order_code` (`order_code`);
+
+--
+-- Indexy pro tabulku `order_notes`
+--
+ALTER TABLE `order_notes`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `order_id` (`order_id`);
+
+--
+-- Indexy pro tabulku `production_schedule`
+--
+ALTER TABLE `production_schedule`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `order_id` (`order_id`),
+  ADD KEY `technology_id` (`technology_id`);
+
+--
+-- Indexy pro tabulku `technologies`
+--
+ALTER TABLE `technologies`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `name` (`name`);
+
+--
+-- AUTO_INCREMENT pro tabulky
+--
+
+--
+-- AUTO_INCREMENT pro tabulku `orders`
+--
+ALTER TABLE `orders`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pro tabulku `order_notes`
+--
+ALTER TABLE `order_notes`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pro tabulku `production_schedule`
+--
+ALTER TABLE `production_schedule`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT pro tabulku `technologies`
+--
+ALTER TABLE `technologies`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+
+--
+-- Omezení pro exportované tabulky
+--
+
+--
+-- Omezení pro tabulku `order_notes`
+--
+ALTER TABLE `order_notes`
+  ADD CONSTRAINT `order_notes_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE;
+
+--
+-- Omezení pro tabulku `production_schedule`
+--
+ALTER TABLE `production_schedule`
+  ADD CONSTRAINT `production_schedule_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `production_schedule_ibfk_2` FOREIGN KEY (`technology_id`) REFERENCES `technologies` (`id`);
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;

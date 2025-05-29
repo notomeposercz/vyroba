@@ -707,3 +707,38 @@
 .day-content {
     min-height: 200px; /* Zajistit minimální výšku i když jsou všechny prvky skryté */
 }
+
+/* Styly pro kalendářní blokace */
+.calendar-block {
+    background: #ef4444;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    text-align: center;
+    font-weight: 600;
+}
+
+.block-dovolena {
+    background: #3b82f6 !important;
+}
+
+.block-udrzba {
+    background: #f59e0b !important;
+}
+
+.block-svatek {
+    background: #10b981 !important;
+}
+
+.block-jine {
+    background: #6b7280 !important;
+}
+
+.block-content small {
+    display: block;
+    font-size: 0.6rem;
+    opacity: 0.9;
+    margin-top: 0.15rem;
+}

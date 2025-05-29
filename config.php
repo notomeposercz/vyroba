@@ -4,6 +4,7 @@ define('DB_HOST', 'db.dw189.webglobe.com');
 define('DB_NAME', 'vyroba_myrec_cz');
 define('DB_USER', 'vyroba_myrec_cz');
 define('DB_PASS', 'bPgQY78S');
+define('API_URL', '/api.php');
 
 try {
     $pdo = new PDO(

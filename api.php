@@ -28,12 +28,131 @@ class ProductionAPI {
                 return $this->handleTechnologies($method);
             case 'history':
                 return $this->handleHistory($method);
+            case 'blocks':  // NOVÝ ENDPOINT
+                return $this->handleBlocks($method);
             default:
                 http_response_code(404);
                 return ['error' => 'Endpoint not found'];
         }
     }
     
+    // PŘIDAT TUTO NOVOU METODU
+    private function handleBlocks($method) {
+        switch ($method) {
+            case 'GET':
+                return $this->getBlocks();
+            case 'POST':
+                if (!hasPermission('edit_schedule')) {
+                    http_response_code(403);
+                    return ['error' => 'Insufficient permissions'];
+                }
+                return $this->createBlock();
+            default:
+                http_response_code(405);
+                return ['error' => 'Method not allowed'];
+        }
+    }
+    
+    // PŘIDAT TUTO METODU
+    private function getBlocks() {
+        $startDate = $_GET['start'] ?? date('Y-m-d');
+        $endDate = $_GET['end'] ?? date('Y-m-d', strtotime('+30 days'));
+        
+        $sql = "SELECT * FROM calendar_blocks 
+                WHERE start_date <= :end_date AND end_date >= :start_date
+                ORDER BY start_date";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute(['start_date' => $startDate, 'end_date' => $endDate]);
+        
+        return $stmt->fetchAll();
+    }
+    
+    // PŘIDAT TUTO METODU
+    private function createBlock() {
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $sql = "INSERT INTO calendar_blocks (type, start_date, end_date, note, created_by, created_at)
+                VALUES (:type, :start_date, :end_date, :note, :created_by, NOW())";
+        
+        $data = [
+            'type' => $input['type'],
+            'start_date' => $input['start_date'],
+            'end_date' => $input['end_date'],
+            'note' => $input['note'] ?? null,
+            'created_by' => $_SESSION['user_id']
+        ];
+        
+        $stmt = $this->pdo->prepare($sql);
+        $result = $stmt->execute($data);
+        
+        if ($result) {
+            $blockId = $this->pdo->lastInsertId();
+            logUserAction($this->pdo, 'calendar_blocks', $blockId, 'INSERT', null, $data, 'Vytvořena nová blokace');
+        }
+        
+        return ['success' => $result, 'id' => $blockId ?? null];
+    }
+    
+    // OPRAVIT UPDATEORDER METODU - NAHRADIT EXISTUJÍCÍ
+    private function updateOrder() {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $orderId = $input['id'];
+        
+        // Získat původní hodnoty
+        $stmt = $this->pdo->prepare("SELECT * FROM orders WHERE id = ?");
+        $stmt->execute([$orderId]);
+        $oldValues = $stmt->fetch();
+        
+        // Kontrola oprávnění pro stav náhledu
+        if (isset($input['preview_status']) && !hasPermission('edit_preview_status') && $_SESSION['role'] !== 'admin') {
+            unset($input['preview_status']);
+        }
+        
+        // ROZŠÍŘIT SQL O VŠECHNA POLE
+        $sql = "UPDATE orders SET 
+                order_code = :order_code,
+                catalog = :catalog,
+                quantity = :quantity,
+                order_date = :order_date,
+                goods_ordered_date = :goods_ordered_date,
+                goods_stocked_date = :goods_stocked_date,
+                preview_status = :preview_status,
+                preview_approved_date = :preview_approved_date,
+                shipping_date = :shipping_date,
+                production_status = :production_status,
+                notes = :notes,
+                salesperson = :salesperson
+                WHERE id = :id";
+        
+        // Připravit data s výchozími hodnotami
+        $data = [
+            'id' => $orderId,
+            'order_code' => $input['order_code'] ?? $oldValues['order_code'],
+            'catalog' => $input['catalog'] ?? $oldValues['catalog'],
+            'quantity' => $input['quantity'] ?? $oldValues['quantity'],
+            'order_date' => $input['order_date'] ?? $oldValues['order_date'],
+            'goods_ordered_date' => $input['goods_ordered_date'] ?? $oldValues['goods_ordered_date'],
+            'goods_stocked_date' => $input['goods_stocked_date'] ?? $oldValues['goods_stocked_date'],
+            'preview_status' => $input['preview_status'] ?? $oldValues['preview_status'],
+            'preview_approved_date' => $input['preview_approved_date'] ?? $oldValues['preview_approved_date'],
+            'shipping_date' => $input['shipping_date'] ?? $oldValues['shipping_date'],
+            'production_status' => $input['production_status'] ?? $oldValues['production_status'],
+            'notes' => $input['notes'] ?? $oldValues['notes'],
+            'salesperson' => $input['salesperson'] ?? $oldValues['salesperson']
+        ];
+        
+        $stmt = $this->pdo->prepare($sql);
+        $result = $stmt->execute($data);
+        
+        if ($result) {
+            logUserAction($this->pdo, 'orders', $orderId, 'UPDATE', $oldValues, $data, 'Aktualizována objednávka');
+        }
+        
+        return ['success' => $result];
+    }
+    
+    // Zbytek kódu zůstává stejný...
     private function handleOrders($method) {
         switch ($method) {
             case 'GET':
@@ -99,39 +218,6 @@ class ProductionAPI {
         return ['success' => $result, 'id' => $orderId ?? null];
     }
     
-    private function updateOrder() {
-        $input = json_decode(file_get_contents('php://input'), true);
-        $orderId = $input['id'];
-        
-        // Získat původní hodnoty
-        $stmt = $this->pdo->prepare("SELECT * FROM orders WHERE id = ?");
-        $stmt->execute([$orderId]);
-        $oldValues = $stmt->fetch();
-        
-        // Kontrola oprávnění pro stav náhledu
-        if (isset($input['preview_status']) && !hasPermission('edit_preview_status') && $_SESSION['role'] !== 'admin') {
-            unset($input['preview_status']);
-        }
-        
-        $sql = "UPDATE orders SET 
-                preview_status = :preview_status,
-                preview_approved_date = :preview_approved_date,
-                shipping_date = :shipping_date,
-                production_status = :production_status,
-                notes = :notes,
-                salesperson = :salesperson
-                WHERE id = :id";
-        
-        $stmt = $this->pdo->prepare($sql);
-        $result = $stmt->execute($input);
-        
-        if ($result) {
-            logUserAction($this->pdo, 'orders', $orderId, 'UPDATE', $oldValues, $input, 'Aktualizována objednávka');
-        }
-        
-        return ['success' => $result];
-    }
-    
     private function handleHistory($method) {
         if ($method === 'GET') {
             if (!hasPermission('view_history')) {
@@ -180,7 +266,6 @@ class ProductionAPI {
         return $stmt->fetchAll();
     }
     
-    // Ostatní metody zůstávají stejné...
     private function handleSchedule($method) {
         switch ($method) {
             case 'GET':

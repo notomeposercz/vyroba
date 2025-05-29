@@ -33,14 +33,29 @@
                 this.updateUI();
             }
             
-            async loadOrders() {
-                try {
-                    const response = await fetch(`${this.apiBase}/orders`);
-                    this.orders = await response.json();
-                } catch (error) {
-                    console.error('Chyba při načítání objednávek:', error);
-                }
-            }
+            sync loadOrders() {
+    try {
+        const response = await fetch(`${this.apiBase}/orders`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        this.orders = await response.json();
+        console.log('Načteno objednávek:', this.orders.length); // Pro debug
+        
+        // Filtrovat objednávky pro kalendář - pouze schválené náhledy
+        this.calendarOrders = this.orders.filter(order => 
+            order.preview_status === 'Schváleno' && order.preview_approved_date
+        );
+        
+        this.updateUI();
+    } catch (error) {
+        console.error('Chyba při načítání objednávek:', error);
+        // Zobrazit chybu uživateli
+        const container = document.querySelector('.pending-orders-container');
+        if (container) {
+            container.innerHTML = '<div class="error-message">Chyba při načítání dat</div>';
+        }
+    }
+}
             
             async loadSchedule() {
                 const startDate = this.getWeekStart();
@@ -143,26 +158,40 @@
             }
             
             async updateOrderStatus(orderId, field, value) {
-                try {
-                    const updateData = { id: orderId, [field]: value };
-                    if (field === 'preview_status' && value === 'Schváleno') {
-                        updateData.preview_approved_date = new Date().toISOString().split('T')[0];
-                    }
-                    
-                    const response = await fetch(`${this.apiBase}/orders`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updateData)
-                    });
-                    
-                    if (response.ok) {
-                        await this.loadOrders();
-                        this.updateUI();
-                    }
-                } catch (error) {
-                    console.error('Chyba při aktualizaci objednávky:', error);
-                }
+    try {
+        const updateData = { id: orderId, [field]: value };
+        
+        // Pokud se schvaluje náhled, nastavit datum schválení
+        if (field === 'preview_status' && value === 'Schváleno') {
+            updateData.preview_approved_date = new Date().toISOString().split('T')[0];
+        }
+        
+        const response = await fetch(`${this.apiBase}/orders`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updateData)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            await this.loadOrders(); // Znovu načíst data
+            this.updateUI();
+            
+            // Zobrazit notifikaci
+            if (typeof showNotification === 'function') {
+                showNotification(`${field} aktualizováno`, 'success');
             }
+        } else {
+            throw new Error(result.error || 'Chyba při aktualizaci');
+        }
+    } catch (error) {
+        console.error('Chyba při aktualizaci objednávky:', error);
+        if (typeof showNotification === 'function') {
+            showNotification('Chyba při aktualizaci', 'error');
+        }
+    }
+}
             
             async updateOrderField(orderId, field, value) {
                 try {
@@ -198,6 +227,94 @@
                 return new Date(start.setDate(start.getDate() + 6)).toISOString().split('T')[0];
             }
         }
+        
+        
+        
+        
+        // PŘIDAT NOVOU METODU pro renderování kalendáře
+renderCalendar() {
+    // Najít kalendářní kontejner
+    const calendarContainer = document.getElementById('calendarGrid');
+    if (!calendarContainer) return;
+    
+    // Získat aktuální týden
+    const weekStart = this.getWeekStart();
+    const weekDays = ['Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek'];
+    
+    calendarContainer.innerHTML = '';
+    
+    for (let i = 0; i < 5; i++) {
+        const date = new Date(weekStart);
+        date.setDate(weekStart.getDate() + i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const dayDiv = document.createElement('div');
+        dayDiv.className = 'calendar-day';
+        dayDiv.setAttribute('data-date', dateStr);
+        
+        // Získat objednávky pro tento den
+        const dayOrders = this.getOrdersForDate(date);
+        
+        dayDiv.innerHTML = `
+            <div class="day-header">
+                ${weekDays[i]} (${date.getDate()}.${date.getMonth() + 1}.)
+            </div>
+            <div class="day-content">
+                ${dayOrders.map(order => this.createCalendarOrderHTML(order)).join('')}
+                ${dayOrders.length === 0 ? '<div class="no-orders-day">Žádné akce</div>' : ''}
+            </div>
+        `;
+        
+        calendarContainer.appendChild(dayDiv);
+    }
+}
+
+// PŘIDAT POMOCNOU METODU
+getOrdersForDate(date) {
+    const dateStr = date.toISOString().split('T')[0];
+    
+    return this.calendarOrders.filter(order => {
+        if (!order.preview_approved_date || !order.shipping_date) return false;
+        
+        const startDate = order.preview_approved_date;
+        const endDate = order.shipping_date;
+        
+        return dateStr >= startDate && dateStr <= endDate;
+    });
+}
+
+// PŘIDAT METODU pro HTML objednávky v kalendáři
+createCalendarOrderHTML(order) {
+    const techClass = this.getTechnologyClass(order.technology_name);
+    return `
+        <div class="calendar-order ${techClass}" data-order-id="${order.id}">
+            <div class="order-code-cal">${order.order_code}</div>
+            <div class="order-info-cal">${order.quantity} ks${order.technology_name ? ' - ' + order.technology_name : ''}</div>
+            <div class="order-actions-cal">
+                <button class="mark-completed-btn" onclick="markOrderCompleted(${order.id})" title="Označit jako hotovo">
+                    ✓
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// PŘIDAT METODU pro CSS třídy technologií
+getTechnologyClass(techName) {
+    if (!techName) return 'tech-default';
+    
+    switch (techName.toLowerCase()) {
+        case 'sítotisk': return 'tech-sitotisk';
+        case 'potisk': return 'tech-potisk';
+        case 'gravírování': return 'tech-gravirovani';
+        case 'výšivka': return 'tech-vysivka';
+        case 'laser': return 'tech-laser';
+        default: return 'tech-default';
+    }
+}
+        
+        
+        
         
         // Inicializace aplikace
         document.addEventListener('DOMContentLoaded', () => {

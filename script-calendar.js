@@ -1,6 +1,7 @@
 // Calendar-specific functionality
 
 // Global variables for calendar
+let vyrobaManager = null;
 let currentWeekStart = new Date();
 let selectedOrderId = null;
 let orders = [];
@@ -19,10 +20,18 @@ function initializeCalendar() {
     const dayOfWeek = today.getDay();
     const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
     currentWeekStart = new Date(today.setDate(diff));
-    
+
     updateWeekDisplay();
-    generateCalendarGrid();
-    loadCompletedOrders();
+    
+    // Pokud existuje VyrobaManager, použít ho
+    if (typeof VyrobaManager !== 'undefined') {
+        vyrobaManager = new VyrobaManager();
+        vyrobaManager.init();
+    } else {
+        // Fallback na starý způsob
+        generateCalendarGrid();
+        loadCompletedOrders();
+    }
 }
 
 function setupCalendarEventListeners() {
@@ -333,7 +342,7 @@ function updateShippingDate(orderId, date) {
     }
 }
 
-// Calendar grid functions
+// OPRAVIT generateCalendarGrid FUNKCI - najděte ji a přidejte na konec:
 function generateCalendarGrid() {
     const container = document.getElementById('calendarGrid');
     if (!container) return;
@@ -348,6 +357,7 @@ function generateCalendarGrid() {
         
         const dayDiv = document.createElement('div');
         dayDiv.className = 'calendar-day';
+        dayDiv.setAttribute('data-date', date.toISOString().split('T')[0]); // PŘIDAT TOTO
         
         const isHoliday = isDateHoliday(date);
         if (isHoliday) {
@@ -368,6 +378,9 @@ function generateCalendarGrid() {
         
         container.appendChild(dayDiv);
     }
+    
+    // PŘIDAT NAČTENÍ BLOKACÍ
+    loadBlocks();
 }
 
 function isDateHoliday(date) {
@@ -435,7 +448,13 @@ function getTechnologyClass(tech) {
 function navigateWeek(direction) {
     currentWeekStart.setDate(currentWeekStart.getDate() + (direction * 7));
     updateWeekDisplay();
-    generateCalendarGrid();
+    
+    if (vyrobaManager) {
+        vyrobaManager.renderCalendar();
+        loadBlocks(); // Načíst blokace pro nový týden
+    } else {
+        generateCalendarGrid();
+    }
 }
 
 function updateWeekDisplay() {
@@ -451,6 +470,48 @@ function updateWeekDisplay() {
         displayElement.textContent = `Týden (${startStr} - ${endStr})`;
     }
 }
+
+
+
+// PŘIDAT GLOBÁLNÍ FUNKCI pro označení jako hotovo
+window.markOrderCompleted = async function(orderId) {
+    if (!confirm('Označit objednávku jako hotovou?')) return;
+    
+    try {
+        const response = await fetch('api.php/orders', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: orderId,
+                production_status: 'Hotovo'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showNotification('Objednávka označena jako hotová', 'success');
+            
+            // Obnovit data
+            if (vyrobaManager) {
+                await vyrobaManager.loadOrders();
+                vyrobaManager.updateUI();
+            } else {
+                generateCalendarGrid();
+            }
+            
+            loadCompletedOrders();
+        } else {
+            throw new Error(result.error || 'Chyba při aktualizaci');
+        }
+    } catch (error) {
+        console.error('Chyba při označování jako hotovo:', error);
+        showNotification('Chyba při označování jako hotovo', 'error');
+    }
+};
+
+
+
 
 // Nahradit funkci filterCalendarByTechnology v script-calendar.js (řádky 455-465)
 function filterCalendarByTechnology(tech) {
@@ -541,26 +602,94 @@ function showBlockModal() {
     }
 }
 
-function addBlock(event) {
+// NAHRADIT EXISTUJÍCÍ addBlock FUNKCI
+async function addBlock(event) {
     event.preventDefault();
     const formData = new FormData(event.target);
     
-    // Here you would typically send to API
-    console.log('Adding block:', {
+    const blockData = {
         type: formData.get('blockType'),
-        start: formData.get('blockStartDate'),
-        end: formData.get('blockEndDate'),
+        start_date: formData.get('blockStartDate'),
+        end_date: formData.get('blockEndDate'),
         note: formData.get('blockNote')
-    });
+    };
     
-    closeModal('blockModal');
-    showNotification('Blokace byla úspěšně přidána', 'success');
-    event.target.reset();
+    try {
+        const response = await fetch('api.php/blocks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(blockData)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            closeModal('blockModal');
+            showNotification('Blokace byla úspěšně přidána', 'success');
+            event.target.reset();
+            generateCalendarGrid(); // Obnovit kalendář
+            loadBlocks(); // Načíst blokace
+        } else {
+            showNotification('Chyba při ukládání: ' + (result.error || 'Neznámá chyba'), 'error');
+        }
+    } catch (error) {
+        console.error('Chyba při ukládání blokace:', error);
+        showNotification('Chyba při ukládání blokace', 'error');
+    }
 }
 
-// Calendar-specific action functions
-function toggleOrderCompletion(orderId, orderCode) {
-    showNotification(`Označit zakázku ${orderCode} jako hotovou?`, 'info');
+// PŘIDAT NOVOU FUNKCI pro načítání blokací
+async function loadBlocks() {
+    try {
+        const startDate = new Date(currentWeekStart);
+        const endDate = new Date(currentWeekStart);
+        endDate.setDate(endDate.getDate() + 7);
+        
+        const response = await fetch(`api.php/blocks?start=${startDate.toISOString().split('T')[0]}&end=${endDate.toISOString().split('T')[0]}`);
+        const blocks = await response.json();
+        
+        // Aplikovat blokace do kalendáře
+        applyBlocksToCalendar(blocks);
+    } catch (error) {
+        console.error('Chyba při načítání blokací:', error);
+    }
+}
+
+// PŘIDAT NOVOU FUNKCI pro aplikování blokací
+function applyBlocksToCalendar(blocks) {
+    blocks.forEach(block => {
+        const startDate = new Date(block.start_date);
+        const endDate = new Date(block.end_date);
+        
+        // Pro každý den v rozpětí blokace
+        for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+            const dateStr = date.toISOString().split('T')[0];
+            const dayElement = document.querySelector(`[data-date="${dateStr}"]`);
+            
+            if (dayElement) {
+                const blockDiv = document.createElement('div');
+                blockDiv.className = `calendar-block block-${block.type}`;
+                blockDiv.innerHTML = `
+                    <div class="block-content">
+                        ${getBlockDisplayName(block.type)}
+                        ${block.note ? `<small>${block.note}</small>` : ''}
+                    </div>
+                `;
+                dayElement.appendChild(blockDiv);
+            }
+        }
+    });
+}
+
+// PŘIDAT POMOCNOU FUNKCI
+function getBlockDisplayName(type) {
+    switch (type) {
+        case 'dovolena': return 'DOVOLENÁ';
+        case 'udrzba': return 'ÚDRŽBA';
+        case 'svatek': return 'SVÁTEK';
+        case 'jine': return 'BLOKACE';
+        default: return 'BLOKACE';
+    }
 }
 
 function markAsCompleted(orderId) {

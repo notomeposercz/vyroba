@@ -17,6 +17,82 @@ date_default_timezone_set('Europe/Prague');
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="style_auth.css">
     <link rel="stylesheet" href="style_calendar.css">
+	    <style>
+/* Kalendářní objednávky */
+.calendar-order {
+    background: #e5e7eb;
+    border-left: 4px solid #6b7280;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+}
+
+.calendar-order:hover {
+    background: #d1d5db;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.tech-sitotisk { border-left-color: #ef4444; }
+.tech-potisk { border-left-color: #3b82f6; }
+.tech-gravirovani { border-left-color: #8b5cf6; }
+.tech-vysivka { border-left-color: #10b981; }
+.tech-laser { border-left-color: #f59e0b; }
+.tech-default { border-left-color: #6b7280; }
+
+.order-code-cal {
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 0.25rem;
+}
+
+.order-info-cal {
+    color: #6b7280;
+    font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+
+.order-actions-cal {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.mark-completed-btn {
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.mark-completed-btn:hover {
+    background: #059669;
+}
+
+.no-orders-day {
+    color: #9ca3af;
+    font-style: italic;
+    text-align: center;
+    padding: 1rem;
+    font-size: 0.8rem;
+}
+
+.error-message {
+    background: #fef2f2;
+    color: #dc2626;
+    padding: 1rem;
+    border-radius: 6px;
+    text-align: center;
+    margin: 1rem;
+    border: 1px solid #fecaca;
+}
+</style>
 </head>
 <body class="calendar-layout role-<?php echo $_SESSION['role']; ?>">
     <!-- Header -->

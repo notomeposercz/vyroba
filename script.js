@@ -120,14 +120,33 @@ function updateTechnologySelects() {
 async function loadOrders() {
     try {
         const response = await fetch(`${API_URL}/orders`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
         
         currentOrders = await response.json();
+        console.log('Načteno objednávek ze script.js:', currentOrders.length);
+        
         displayOrders(currentOrders);
         updateOrderSelects();
+        
+        // Aktualizovat také kalendář pokud je na stránce
+        if (typeof generateCalendarGrid === 'function') {
+            generateCalendarGrid();
+        }
+        
+        return currentOrders; // Vrátit pro použití v jiných funkcích
     } catch (error) {
         console.error('Chyba při načítání objednávek:', error);
-        showNotification('Chyba při načítání objednávek', 'error');
+        showNotification('Chyba při načítání objednávek: ' + error.message, 'error');
+        
+        // Zobrazit chybu v UI
+        const ordersContainer = document.getElementById('pendingOrdersList');
+        if (ordersContainer) {
+            ordersContainer.innerHTML = '<div class="error-message">Chyba při načítání dat</div>';
+        }
+        
+        return [];
     }
 }
 
@@ -462,28 +481,38 @@ function showAddOrderModal() {
     document.getElementById('orderModal').style.display = 'block';
 }
 
+// OVĚŘIT/OPRAVIT editOrder FUNKCI
 function editOrder(orderId) {
-    if (!userPermissions.canEditOrders) return;
+    if (!userPermissions.canEditOrders) {
+        showNotification('Nemáte oprávnění k editaci objednávek', 'error');
+        return;
+    }
     
     const order = currentOrders.find(o => o.id == orderId);
-    if (!order) return;
+    if (!order) {
+        showNotification('Objednávka nebyla nalezena', 'error');
+        return;
+    }
     
+    // Vyplnit formulář
     document.getElementById('orderModalTitle').textContent = 'Upravit objednávku';
     document.getElementById('orderId').value = order.id;
-    document.getElementById('orderCode').value = order.order_code;
+    document.getElementById('orderCode').value = order.order_code || '';
     document.getElementById('catalog').value = order.catalog || '';
-    document.getElementById('quantity').value = order.quantity;
-    document.getElementById('orderDate').value = order.order_date;
+    document.getElementById('quantity').value = order.quantity || '';
+    document.getElementById('orderDate').value = order.order_date || '';
     document.getElementById('goodsOrderedDate').value = order.goods_ordered_date || '';
     document.getElementById('goodsStockedDate').value = order.goods_stocked_date || '';
-    document.getElementById('previewStatus').value = order.preview_status;
-    document.getElementById('productionStatus').value = order.production_status;
+    document.getElementById('previewStatus').value = order.preview_status || 'Čeká';
+    document.getElementById('productionStatus').value = order.production_status || 'Čekající';
     document.getElementById('notes').value = order.notes || '';
     document.getElementById('salesperson').value = order.salesperson || '';
     
+    // Zobrazit modal
     document.getElementById('orderModal').style.display = 'block';
 }
 
+// OPRAVIT SAVEEORDER FUNKCI - nahradit existující
 async function saveOrder(event) {
     event.preventDefault();
     
@@ -505,6 +534,7 @@ async function saveOrder(event) {
     try {
         let response;
         if (orderId) {
+            // Editace existující objednávky
             formData.id = parseInt(orderId);
             response = await fetch(`${API_URL}/orders`, {
                 method: 'PUT',
@@ -512,6 +542,7 @@ async function saveOrder(event) {
                 body: JSON.stringify(formData)
             });
         } else {
+            // Nová objednávka
             response = await fetch(`${API_URL}/orders`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -521,11 +552,13 @@ async function saveOrder(event) {
         
         const result = await response.json();
         
-        if (result.success) {
+        if (response.ok && result.success) {
             showNotification(orderId ? 'Objednávka upravena' : 'Objednávka vytvořena', 'success');
             closeModal('orderModal');
-            loadOrders();
-            loadCompletedOrders();
+            loadOrders(); // Znovu načíst objednávky
+            if (typeof loadCompletedOrders === 'function') {
+                loadCompletedOrders();
+            }
         } else {
             showNotification('Chyba při ukládání: ' + (result.error || 'Neznámá chyba'), 'error');
         }
@@ -701,62 +734,63 @@ function getTableText(tableName) {
 }
 
 function showNotification(message, type = 'info') {
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-        <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation-triangle' : 'info'}"></i>
-        ${message}
-    `;
-    
-    // Stylování
-    notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 15px 20px;
-        border-radius: 8px;
-        color: white;
-        font-weight: 500;
-        z-index: 10000;
-        max-width: 350px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        transform: translateX(100%);
-        transition: transform 0.3s ease;
-    `;
-    
-    switch(type) {
-        case 'success':
-            notification.style.backgroundColor = '#10b981';
-            break;
-        case 'error':
-            notification.style.backgroundColor = '#ef4444';
-            break;
-        default:
-            notification.style.backgroundColor = '#3b82f6';
+    // Najít nebo vytvořit kontejner pro notifikace
+    let container = document.getElementById('notifications');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notifications';
+        container.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            max-width: 400px;
+        `;
+        document.body.appendChild(container);
     }
     
-    document.body.appendChild(notification);
+    // Vytvořit notifikaci
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.style.cssText = `
+        background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+        color: white;
+        padding: 1rem;
+        border-radius: 6px;
+        margin-bottom: 0.5rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        animation: slideIn 0.3s ease;
+    `;
+    notification.textContent = message;
     
-    // Animace příchodu
-    setTimeout(() => {
-        notification.style.transform = 'translateX(0)';
-    }, 100);
+    container.appendChild(notification);
     
-    // Automatické odstranění
+    // Automatické skrytí po 5 sekundách
     setTimeout(() => {
-        notification.style.transform = 'translateX(100%)';
-        setTimeout(() => notification.remove(), 300);
-    }, 4000);
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 5000);
 }
 
-// Event listener pro zavření modalu kliknutím mimo
-window.onclick = function(event) {
-    const modals = document.querySelectorAll('.modal');
-    modals.forEach(modal => {
-        if (event.target === modal) {
-            modal.style.display = 'none';
+// PŘIDAT CSS animace pro notifikace
+if (!document.getElementById('notification-styles')) {
+    const style = document.createElement('style');
+    style.id = 'notification-styles';
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
         }
-    });
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
 }
 
 // Export funkcí pro globální použití

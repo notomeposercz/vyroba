@@ -10,123 +10,146 @@ date_default_timezone_set('Europe/Prague');
     <title>Výrobní systém - <?php echo date('d.m.Y'); ?></title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-calendar.css">
 </head>
-<body>
-    <div class="container">
-        <header>
-            <h1><i class="fas fa-industry"></i> Výrobní systém</h1>
-            <div class="header-info">
-                <span><i class="fas fa-user"></i> <?php echo 'notomeposercz'; ?></span>
-                <span><i class="fas fa-calendar"></i> <?php echo date('d.m.Y H:i'); ?></span>
+<body class="calendar-layout">
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-content">
+            <div class="header-left">
+                <div class="logo">
+                    <i class="fas fa-industry"></i>
+                </div>
+                <h1>Platforma pro přehled výroby</h1>
             </div>
-            <nav>
-                <button class="nav-btn active" data-tab="orders">
-                    <i class="fas fa-shopping-cart"></i> Objednávky
+            <div class="header-right">
+                <span class="user-info">
+                    <i class="fas fa-user"></i> 
+                    Přihlášen: <?php echo 'notomeposercz'; ?> (Výroba)
+                </span>
+                <span class="date-info">
+                    <i class="fas fa-calendar"></i> 
+                    <?php echo date('d.m.Y H:i'); ?>
+                </span>
+                <button class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Odhlásit
                 </button>
-                <button class="nav-btn" data-tab="schedule">
-                    <i class="fas fa-calendar-alt"></i> Výrobní plán
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Left Sidebar - Pending Orders -->
+        <aside class="left-panel">
+            <div class="panel-header">
+                <h2><i class="fas fa-shopping-cart"></i> Čekající objednávky</h2>
+            </div>
+            
+            <!-- Filters -->
+            <div class="panel-filters">
+                <input type="text" id="orderSearchInput" placeholder="Filtrovat produkt/kód..." 
+                       class="filter-input" onkeyup="filterOrders()">
+                <div class="filter-row">
+                    <input type="date" id="orderDateFilter" class="filter-input" 
+                           title="Filtrovat podle data vytvoření" onchange="filterOrders()">
+                    <select id="orderStatusFilter" class="filter-input" onchange="filterOrders()">
+                        <option value="all">Všechny stavy</option>
+                        <option value="Čekající">Čekající</option>
+                        <option value="V_výrobě">V výrobě</option>
+                        <option value="Hotovo">Hotovo</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Orders List -->
+            <div id="pendingOrdersList" class="orders-list">
+                <!-- Orders will be loaded here -->
+            </div>
+            
+            <!-- Add Order Button -->
+            <div class="panel-footer">
+                <button class="btn btn-primary btn-full" onclick="showAddOrderModal()">
+                    <i class="fas fa-plus"></i> Nová objednávka
                 </button>
-                <button class="nav-btn" data-tab="analytics">
-                    <i class="fas fa-chart-bar"></i> Statistiky
+            </div>
+        </aside>
+
+        <!-- Main Calendar Section -->
+        <section class="center-panel">
+            <div class="panel-header">
+                <h2><i class="fas fa-calendar-alt"></i> Plán Výroby</h2>
+                <div class="technology-filter">
+                    <span class="filter-label">Filtr:</span>
+                    <button class="filter-btn active" data-filter="all">Vše</button>
+                    <button class="filter-btn" data-filter="Sítotisk">Sítotisk</button>
+                    <button class="filter-btn" data-filter="Potisk">Potisk</button>
+                    <button class="filter-btn" data-filter="Gravírování">Gravír</button>
+                    <button class="filter-btn" data-filter="Výšivka">Výšivka</button>
+                    <button class="filter-btn" data-filter="Laser">Laser</button>
+                </div>
+            </div>
+
+            <!-- Week Navigation -->
+            <div class="week-navigation">
+                <button class="nav-btn" onclick="navigateWeek(-1)">
+                    <i class="fas fa-chevron-left"></i> Předchozí
                 </button>
-            </nav>
-        </header>
-
-        <main>
-            <!-- Objednávky tab -->
-            <div id="orders" class="tab-content active">
-                                <div class="toolbar">
-                    <button class="btn btn-primary" onclick="showAddOrderModal()">
-                        <i class="fas fa-plus"></i> Nová objednávka
-                    </button>
-                    <button class="btn btn-success" onclick="importCSV()" id="importBtn">
-                        <i class="fas fa-file-csv"></i> Import CSV
-                    </button>
-                    <div class="filter-group">
-                        <select id="statusFilter" onchange="loadOrders()">
-                            <option value="all">Všechny stavy</option>
-                            <option value="Čekající">Čekající</option>
-                            <option value="V_výrobě">V výrobě</option>
-                            <option value="Hotovo">Hotovo</option>
-                        </select>
-                        <input type="text" id="searchInput" placeholder="Hledat..." onkeyup="searchOrders()">
-                    </div>
-                </div>
-
-                <div class="table-container">
-                    <table id="ordersTable">
-                        <thead>
-                            <tr>
-                                <th>Kód objednávky</th>
-                                <th>Katalog</th>
-                                <th>Množství</th>
-                                <th>Datum objednání</th>
-                                <th>Stav náhledu</th>
-                                <th>Stav výroby</th>
-                                <th>Technologie</th>
-                                <th>Akce</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td colspan="8" class="loading">Načítání...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+                <span class="week-display" id="weekDisplay">Týden (28.4. - 2.5. 2025)</span>
+                <button class="nav-btn" onclick="navigateWeek(1)">
+                    Další <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
 
-            <!-- Výrobní plán tab -->
-            <div id="schedule" class="tab-content">
-                <div class="toolbar">
-                    <button class="btn btn-primary" onclick="showAddScheduleModal()">
-                        <i class="fas fa-plus"></i> Přidat do plánu
-                    </button>
-                    <div class="date-range">
-                        <input type="date" id="startDate" value="<?php echo date('Y-m-d'); ?>" onchange="loadSchedule()">
-                        <span>až</span>
-                        <input type="date" id="endDate" value="<?php echo date('Y-m-d', strtotime('+30 days')); ?>" onchange="loadSchedule()">
-                    </div>
-                </div>
+            <!-- Calendar Grid -->
+            <div id="calendarGrid" class="calendar-grid">
+                <!-- Calendar days will be generated here -->
+            </div>
+            
+            <!-- Calendar Actions -->
+            <div class="panel-footer">
+                <button class="btn btn-primary" onclick="showBlockModal()">
+                    <i class="fas fa-plus"></i> Vložit dovolenou/blokaci
+                </button>
+            </div>
+        </section>
 
-                <div id="scheduleCalendar" class="schedule-grid">
-                    <div class="loading">Načítání výrobního plánu...</div>
+        <!-- Right Sidebar - Order Details -->
+        <aside class="right-panel">
+            <div class="panel-header">
+                <h2><i class="fas fa-info-circle"></i> Detail Zakázky</h2>
+            </div>
+            <div id="orderDetails" class="order-details">
+                <div class="no-selection">
+                    <i class="fas fa-mouse-pointer"></i>
+                    <p>Klikněte na objednávku pro zobrazení detailů</p>
                 </div>
             </div>
+        </aside>
+    </main>
 
-            <!-- Statistiky tab -->
-            <div id="analytics" class="tab-content">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <i class="fas fa-shopping-cart stat-icon"></i>
-                        <h3>Celkem objednávek</h3>
-                        <span class="stat-value" id="totalOrders">-</span>
-                    </div>
-                    <div class="stat-card">
-                        <i class="fas fa-cog stat-icon"></i>
-                        <h3>V výrobě</h3>
-                        <span class="stat-value" id="inProgress">-</span>
-                    </div>
-                    <div class="stat-card">
-                        <i class="fas fa-check stat-icon"></i>
-                        <h3>Dokončeno</h3>
-                        <span class="stat-value" id="completed">-</span>
-                    </div>
-                    <div class="stat-card">
-                        <i class="fas fa-clock stat-icon"></i>
-                        <h3>Čeká na schválení</h3>
-                        <span class="stat-value" id="pendingApproval">-</span>
-                    </div>
-                </div>
-                
-                <div class="charts-container">
-                    <div class="chart-card">
-                        <h3>Nejpoužívanější technologie</h3>
-                        <div id="techChart" class="chart"></div>
-                    </div>
-                </div>
-            </div>
-        </main>
-    </div>
+    <!-- Footer - Completed Orders -->
+    <footer class="main-footer">
+        <h2><i class="fas fa-check-circle"></i> Hotové Zakázky</h2>
+        <div class="completed-orders-table">
+            <table id="completedOrdersTable">
+                <thead>
+                    <tr>
+                        <th>Kód obj.</th>
+                        <th>Dokončeno</th>
+                        <th>Obchodník</th>
+                        <th>Technologie</th>
+                        <th>Akce</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Completed orders will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+    </footer>
 
+    <!-- Původní modaly pro kompatibilitu -->
     <!-- Modal pro novou objednávku -->
     <div id="orderModal" class="modal">
         <div class="modal-content">
@@ -183,6 +206,17 @@ date_default_timezone_set('Europe/Prague');
                     </div>
                 </div>
                 <div class="form-group">
+                    <label>Technologie:</label>
+                    <select id="technology">
+                        <option value="">Vyberte technologii</option>
+                        <option value="Sítotisk">Sítotisk</option>
+                        <option value="Potisk">Potisk</option>
+                        <option value="Gravírování">Gravírování</option>
+                        <option value="Výšivka">Výšivka</option>
+                        <option value="Laser">Laser</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label>Poznámky:</label>
                     <textarea id="notes" rows="3"></textarea>
                 </div>
@@ -235,6 +269,45 @@ date_default_timezone_set('Europe/Prague');
         </div>
     </div>
 
+    <!-- Block/Holiday Modal -->
+    <div id="blockModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('blockModal')">&times;</span>
+            <h2><i class="fas fa-ban"></i> Vložit blokaci/dovolenou</h2>
+            <form id="blockForm" onsubmit="addBlock(event)">
+                <div class="form-group">
+                    <label>Typ blokace:</label>
+                    <select id="blockType" name="blockType" required>
+                        <option value="">Vyberte typ</option>
+                        <option value="dovolena">Dovolená</option>
+                        <option value="udrzba">Údržba</option>
+                        <option value="svatek">Svátek</option>
+                        <option value="jine">Jiné</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Od data:</label>
+                        <input type="date" id="blockStartDate" name="blockStartDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Do data:</label>
+                        <input type="date" id="blockEndDate" name="blockEndDate" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Poznámka:</label>
+                    <textarea id="blockNote" name="blockNote" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('blockModal')">Zrušit</button>
+                    <button type="submit" class="btn btn-primary">Uložit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="script.js"></script>
+    <script src="script-calendar.js"></script>
 </body>
 </html>

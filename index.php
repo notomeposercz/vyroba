@@ -35,9 +35,12 @@ date_default_timezone_set('Europe/Prague');
         <main>
             <!-- Objednávky tab -->
             <div id="orders" class="tab-content active">
-                <div class="toolbar">
+                                <div class="toolbar">
                     <button class="btn btn-primary" onclick="showAddOrderModal()">
                         <i class="fas fa-plus"></i> Nová objednávka
+                    </button>
+                    <button class="btn btn-success" onclick="importCSV()" id="importBtn">
+                        <i class="fas fa-file-csv"></i> Import CSV
                     </button>
                     <div class="filter-group">
                         <select id="statusFilter" onchange="loadOrders()">

@@ -377,6 +377,102 @@ async function loadAnalytics() {
     }
 }
 
+
+
+async function importCSV() {
+    const importBtn = document.getElementById('importBtn');
+    const originalText = importBtn.innerHTML;
+    
+    // Změnit stav tlačítka
+    importBtn.disabled = true;
+    importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importuji...';
+    
+    try {
+        console.log('Spouštím import CSV...');
+        
+        const response = await fetch('import_csv.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        });
+        
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        // Získat raw text pro debugging
+        const responseText = await response.text();
+        console.log('Raw response:', responseText);
+        
+        // Zkusit parsovat JSON
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (jsonError) {
+            console.error('JSON parse error:', jsonError);
+            console.error('Response text that failed to parse:', responseText);
+            throw new Error(`Server nevrátil validní JSON. Response: ${responseText.substring(0, 200)}...`);
+        }
+        
+        console.log('Parsed result:', result);
+        
+        if (result.success) {
+            showNotification(
+                `CSV import úspěšný! Zpracováno ${result.processed_count} objednávek.`, 
+                'success'
+            );
+            
+            // Znovu načíst data
+            await loadOrders();
+            if (typeof loadAnalytics === 'function') {
+                await loadAnalytics();
+            }
+            
+        } else {
+            console.error('Import error:', result);
+            showNotification(`Chyba při importu: ${result.error}`, 'error');
+            
+            // Zobrazit debug informace pokud jsou dostupné
+            if (result.debug) {
+                console.log('Debug info:', result.debug);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Kompletní chyba při importu CSV:', error);
+        showNotification(`Chyba při komunikaci se serverem: ${error.message}`, 'error');
+    } finally {
+        // Obnovit původní stav tlačítka
+        importBtn.disabled = false;
+        importBtn.innerHTML = originalText;
+    }
+}
+
+// Notifikace (pokud ještě nemáte)
+function showNotification(message, type = 'info') {
+    // Vytvořit notifikační element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation-triangle' : 'info'}"></i>
+        ${message}
+    `;
+    
+    // Přidat do stránky
+    document.body.appendChild(notification);
+    
+    // Animace zobrazení
+    setTimeout(() => notification.classList.add('show'), 100);
+    
+    // Automatické odstranění po 5 sekundách
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 5000);
+}
+
+
+
 function updateTechChart(orders) {
     const chartContainer = document.getElementById('techChart');
     

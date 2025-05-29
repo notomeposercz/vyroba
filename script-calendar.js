@@ -452,15 +452,34 @@ function updateWeekDisplay() {
     }
 }
 
+// Nahradit funkci filterCalendarByTechnology v script-calendar.js (řádky 455-465)
 function filterCalendarByTechnology(tech) {
+    // Filtrovat jednotlivé objednávky v kalendáři
     const calendarOrders = document.querySelectorAll('.calendar-order');
     calendarOrders.forEach(order => {
         const orderTech = order.dataset.technology;
         if (tech === 'all' || !orderTech || orderTech === tech) {
+            order.style.display = ''; // Zobrazit
             order.classList.remove('hidden');
         } else {
+            order.style.display = 'none'; // Skrýt
             order.classList.add('hidden');
         }
+    });
+    
+    // Zajistit, že kalendářní grid zůstane zachovaný
+    const calendarGrid = document.querySelector('.calendar-grid');
+    if (calendarGrid) {
+        // Ujistit se, že grid má správné vlastnosti
+        calendarGrid.style.display = 'grid';
+        calendarGrid.style.gridTemplateColumns = 'repeat(5, 1fr)';
+    }
+    
+    // Zajistit, že kalendářní dny zůstanou viditelné
+    const calendarDays = document.querySelectorAll('.calendar-day');
+    calendarDays.forEach(day => {
+        day.style.display = 'flex';
+        day.style.flexDirection = 'column';
     });
 }
 

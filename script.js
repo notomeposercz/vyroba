@@ -2,6 +2,7 @@
 let currentOrders = [];
 let currentSchedule = [];
 let technologies = [];
+let currentWeekStart = new Date();
 
 // API URL
 const API_URL = 'api.php';
@@ -12,64 +13,86 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeApp() {
+    // Nastavení aktuálního týdne
+    setCurrentWeek();
+    
     // Načtení technologií
     loadTechnologies();
     
     // Načtení objednávek
     loadOrders();
     
-    // Načtení statistik
-    loadAnalytics();
+    // Načtení kalendáře
+    loadCalendar();
     
-    // Nastavení event listenerů pro taby
-    setupTabs();
+    // Nastavení event listenerů
+    setupEventListeners();
     
-    // Nastavení dnešního data
-    setupDateInputs();
+    // Načtení dokončených objednávek
+    loadCompletedOrders();
 }
 
-// Správa tabů
-function setupTabs() {
-    const navBtns = document.querySelectorAll('.nav-btn');
+function setCurrentWeek() {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Pondělí jako první den
+    currentWeekStart = new Date(today.setDate(diff));
+    updateWeekDisplay();
+}
+
+function updateWeekDisplay() {
+    const weekEnd = new Date(currentWeekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
     
-    navBtns.forEach(btn => {
+    const formatDate = (date) => {
+        return `${date.getDate()}.${date.getMonth() + 1}.`;
+    };
+    
+    const weekDisplay = document.getElementById('weekDisplay');
+    if (weekDisplay) {
+        weekDisplay.textContent = `Týden (${formatDate(currentWeekStart)} - ${formatDate(weekEnd)} ${currentWeekStart.getFullYear()})`;
+    }
+}
+
+function setupEventListeners() {
+    // Filtrování objednávek
+    const searchInput = document.getElementById('orderSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keyup', filterOrders);
+    }
+    
+    const dateFilter = document.getElementById('orderDateFilter');
+    if (dateFilter) {
+        dateFilter.addEventListener('change', filterOrders);
+    }
+    
+    const statusFilter = document.getElementById('orderStatusFilter');
+    if (statusFilter) {
+        statusFilter.addEventListener('change', filterOrders);
+    }
+    
+    // Technologie filtry
+    const techFilters = document.querySelectorAll('.filter-btn');
+    techFilters.forEach(btn => {
         btn.addEventListener('click', function() {
-            const targetTab = this.getAttribute('data-tab');
-            switchTab(targetTab);
+            // Odstranit active ze všech
+            techFilters.forEach(b => b.classList.remove('active'));
+            // Přidat active k aktuálnímu
+            this.classList.add('active');
+            
+            const filter = this.getAttribute('data-filter');
+            filterCalendarByTechnology(filter);
         });
     });
-}
-
-function switchTab(tabName) {
-    // Odstranit active třídu ze všech tlačítek a tabů
-    document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-    
-    // Přidat active třídu k aktivnímu tlačítku a tabu
-    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-    document.getElementById(tabName).classList.add('active');
-    
-    // Načíst data podle aktivního tabu
-    switch(tabName) {
-        case 'orders':
-            loadOrders();
-            break;
-        case 'schedule':
-            loadSchedule();
-            break;
-        case 'analytics':
-            loadAnalytics();
-            break;
-    }
 }
 
 // Načtení technologií
 async function loadTechnologies() {
     try {
         const response = await fetch(`${API_URL}/technologies`);
-        technologies = await response.json();
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
-        // Naplnění select boxů
+        technologies = await response.json();
         updateTechnologySelects();
     } catch (error) {
         console.error('Chyba při načítání technologií:', error);
@@ -78,95 +101,361 @@ async function loadTechnologies() {
 }
 
 function updateTechnologySelects() {
-    const selects = document.querySelectorAll('#scheduleTechId');
+    const selects = document.querySelectorAll('#scheduleTechId, #technology');
     
     selects.forEach(select => {
-        select.innerHTML = '<option value="">Vyberte technologii...</option>';
-        technologies.forEach(tech => {
-            const option = document.createElement('option');
-            option.value = tech.id;
-            option.textContent = tech.name;
-            select.appendChild(option);
-        });
+        if (select) {
+            select.innerHTML = '<option value="">Vyberte technologii</option>';
+            technologies.forEach(tech => {
+                const option = document.createElement('option');
+                option.value = tech.id;
+                option.textContent = tech.name;
+                select.appendChild(option);
+            });
+        }
     });
 }
 
 // Načtení objednávek
 async function loadOrders() {
-    const tbody = document.querySelector('#ordersTable tbody');
-    tbody.innerHTML = '<tr><td colspan="8" class="loading">Načítání...</td></tr>';
-    
     try {
-        const status = document.getElementById('statusFilter').value;
-        const url = status === 'all' ? `${API_URL}/orders` : `${API_URL}/orders?status=${status}`;
+        const response = await fetch(`${API_URL}/orders`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
-        const response = await fetch(url);
         currentOrders = await response.json();
-        
         displayOrders(currentOrders);
         updateOrderSelects();
     } catch (error) {
         console.error('Chyba při načítání objednávek:', error);
-        tbody.innerHTML = '<tr><td colspan="8" class="loading">Chyba při načítání dat</td></tr>';
         showNotification('Chyba při načítání objednávek', 'error');
     }
 }
 
 function displayOrders(orders) {
-    const tbody = document.querySelector('#ordersTable tbody');
+    const ordersList = document.getElementById('pendingOrdersList');
+    if (!ordersList) return;
     
     if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="loading">Žádné objednávky</td></tr>';
+        ordersList.innerHTML = '<div class="no-orders">Žádné objednávky</div>';
+        return;
+    }
+    
+    // Filtrovat jen čekající objednávky
+    const pendingOrders = orders.filter(order => 
+        order.production_status === 'Čekající' || order.production_status === 'V_výrobě'
+    );
+    
+    ordersList.innerHTML = pendingOrders.map(order => `
+        <div class="order-item" data-order-id="${order.id}" onclick="showOrderDetails(${order.id})">
+            <div class="order-header">
+                <strong class="order-code">${order.order_code}</strong>
+                <span class="order-date">${formatDate(order.order_date)}</span>
+            </div>
+            <div class="order-info">
+                <div class="catalog">${order.catalog || 'Bez katalogu'}</div>
+                <div class="quantity">Množství: ${order.quantity}</div>
+            </div>
+            <div class="order-status">
+                <span class="status-badge ${getStatusClass(order.preview_status)}">${order.preview_status}</span>
+                <span class="status-badge ${getStatusClass(order.production_status)}">${order.production_status}</span>
+            </div>
+            ${order.technology_name ? `
+                <div class="order-tech">
+                    <span class="tech-tag" style="background-color: ${order.technology_color || '#4299e1'}">
+                        ${order.technology_name}
+                    </span>
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+}
+
+function filterOrders() {
+    const searchTerm = document.getElementById('orderSearchInput')?.value.toLowerCase() || '';
+    const dateFilter = document.getElementById('orderDateFilter')?.value || '';
+    const statusFilter = document.getElementById('orderStatusFilter')?.value || 'all';
+    
+    let filteredOrders = currentOrders;
+    
+    // Textové vyhledávání
+    if (searchTerm) {
+        filteredOrders = filteredOrders.filter(order => 
+            order.order_code.toLowerCase().includes(searchTerm) ||
+            (order.catalog && order.catalog.toLowerCase().includes(searchTerm))
+        );
+    }
+    
+    // Filtr podle data
+    if (dateFilter) {
+        filteredOrders = filteredOrders.filter(order => 
+            order.order_date === dateFilter
+        );
+    }
+    
+    // Filtr podle stavu
+    if (statusFilter !== 'all') {
+        filteredOrders = filteredOrders.filter(order => 
+            order.production_status === statusFilter
+        );
+    }
+    
+    displayOrders(filteredOrders);
+}
+
+function showOrderDetails(orderId) {
+    const order = currentOrders.find(o => o.id == orderId);
+    if (!order) return;
+    
+    const detailsContainer = document.getElementById('orderDetails');
+    if (!detailsContainer) return;
+    
+    // Zvýraznit vybranou objednávku
+    document.querySelectorAll('.order-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    document.querySelector(`[data-order-id="${orderId}"]`)?.classList.add('selected');
+    
+    detailsContainer.innerHTML = `
+        <div class="order-detail-content">
+            <div class="detail-header">
+                <h3>${order.order_code}</h3>
+                ${userPermissions.canEditOrders ? `
+                    <button class="btn btn-sm btn-secondary" onclick="editOrder(${order.id})">
+                        <i class="fas fa-edit"></i> Upravit
+                    </button>
+                ` : ''}
+            </div>
+            
+            <div class="detail-section">
+                <h4>Základní informace</h4>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <label>Katalog:</label>
+                        <span>${order.catalog || 'Nespecifikováno'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Množství:</label>
+                        <span>${order.quantity}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Datum objednání:</label>
+                        <span>${formatDate(order.order_date)}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Obchodník:</label>
+                        <span>${order.salesperson || 'Nespecifikováno'}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h4>Stavy</h4>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <label>Stav náhledu:</label>
+                        <span class="status-badge ${getStatusClass(order.preview_status)}">${order.preview_status}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Stav výroby:</label>
+                        <span class="status-badge ${getStatusClass(order.production_status)}">${order.production_status}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <h4>Termíny</h4>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <label>Objednáno zboží:</label>
+                        <span>${formatDate(order.goods_ordered_date)}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Naskladněno zboží:</label>
+                        <span>${formatDate(order.goods_stocked_date)}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Datum expedice:</label>
+                        <span>${formatDate(order.shipping_date)}</span>
+                    </div>
+                </div>
+            </div>
+            
+            ${order.notes ? `
+                <div class="detail-section">
+                    <h4>Poznámky</h4>
+                    <div class="notes-content">${order.notes}</div>
+                </div>
+            ` : ''}
+            
+            ${userPermissions.canEditSchedule ? `
+                <div class="detail-actions">
+                    <button class="btn btn-primary" onclick="addToSchedule(${order.id})">
+                        <i class="fas fa-calendar-plus"></i> Přidat do plánu
+                    </button>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Kalendář
+function loadCalendar() {
+    generateCalendarGrid();
+    loadScheduleData();
+}
+
+function generateCalendarGrid() {
+    const calendarGrid = document.getElementById('calendarGrid');
+    if (!calendarGrid) return;
+    
+    const days = ['Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota', 'Neděle'];
+    const technologies = ['Sítotisk', 'Potisk', 'Gravírování', 'Výšivka', 'Laser'];
+    
+    let gridHTML = '<div class="calendar-header">';
+    gridHTML += '<div class="time-header">Technologie</div>';
+    
+    // Hlavička s dny
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(currentWeekStart);
+        date.setDate(date.getDate() + i);
+        gridHTML += `
+            <div class="day-header">
+                <div class="day-name">${days[i]}</div>
+                <div class="day-date">${date.getDate()}.${date.getMonth() + 1}.</div>
+            </div>
+        `;
+    }
+    gridHTML += '</div>';
+    
+    // Řádky pro technologie
+    technologies.forEach(tech => {
+        gridHTML += `<div class="calendar-row" data-technology="${tech}">`;
+        gridHTML += `<div class="tech-label">${tech}</div>`;
+        
+        for (let i = 0; i < 7; i++) {
+            const date = new Date(currentWeekStart);
+            date.setDate(date.getDate() + i);
+            const dateStr = date.toISOString().split('T')[0];
+            
+            gridHTML += `
+                <div class="calendar-cell" 
+                     data-date="${dateStr}" 
+                     data-technology="${tech}"
+                     ondrop="drop(event)" 
+                     ondragover="allowDrop(event)">
+                </div>
+            `;
+        }
+        gridHTML += '</div>';
+    });
+    
+    calendarGrid.innerHTML = gridHTML;
+}
+
+async function loadScheduleData() {
+    try {
+        const weekEnd = new Date(currentWeekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        
+        const startDate = currentWeekStart.toISOString().split('T')[0];
+        const endDate = weekEnd.toISOString().split('T')[0];
+        
+        const response = await fetch(`${API_URL}/schedule?start=${startDate}&end=${endDate}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        currentSchedule = await response.json();
+        displayScheduleOnCalendar(currentSchedule);
+    } catch (error) {
+        console.error('Chyba při načítání plánu:', error);
+        showNotification('Chyba při načítání výrobního plánu', 'error');
+    }
+}
+
+function displayScheduleOnCalendar(schedule) {
+    // Vyčistit kalendář
+    document.querySelectorAll('.calendar-cell').forEach(cell => {
+        cell.innerHTML = '';
+    });
+    
+    schedule.forEach(item => {
+        const startDate = new Date(item.start_date);
+        const endDate = new Date(item.end_date);
+        const technology = item.technology_name;
+        
+        // Pro každý den v rozpětí přidat do příslušné buňky
+        for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+            const dateStr = date.toISOString().split('T')[0];
+            const cell = document.querySelector(`[data-date="${dateStr}"][data-technology="${technology}"]`);
+            
+            if (cell) {
+                const orderElement = document.createElement('div');
+                orderElement.className = 'schedule-order';
+                orderElement.style.backgroundColor = item.color || '#4299e1';
+                orderElement.innerHTML = `
+                    <div class="order-code">${item.order_code}</div>
+                    <div class="order-quantity">${item.quantity}ks</div>
+                `;
+                orderElement.draggable = userPermissions.canEditSchedule;
+                orderElement.setAttribute('data-schedule-id', item.id);
+                
+                if (userPermissions.canEditSchedule) {
+                    orderElement.addEventListener('dragstart', drag);
+                }
+                
+                cell.appendChild(orderElement);
+            }
+        }
+    });
+}
+
+// Navigace týdne
+function navigateWeek(direction) {
+    currentWeekStart.setDate(currentWeekStart.getDate() + (direction * 7));
+    updateWeekDisplay();
+    loadCalendar();
+}
+
+// Dokončené objednávky
+async function loadCompletedOrders() {
+    try {
+        const response = await fetch(`${API_URL}/orders?status=Hotovo`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const completedOrders = await response.json();
+        displayCompletedOrders(completedOrders);
+    } catch (error) {
+        console.error('Chyba při načítání dokončených objednávek:', error);
+    }
+}
+
+function displayCompletedOrders(orders) {
+    const tbody = document.querySelector('#completedOrdersTable tbody');
+    if (!tbody) return;
+    
+    if (orders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="no-data">Žádné dokončené objednávky</td></tr>';
         return;
     }
     
     tbody.innerHTML = orders.map(order => `
         <tr>
             <td><strong>${order.order_code}</strong></td>
-            <td>${order.catalog || '-'}</td>
-            <td>${order.quantity}</td>
-            <td>${formatDate(order.order_date)}</td>
-            <td><span class="status-badge ${getStatusClass(order.preview_status)}">${order.preview_status}</span></td>
-            <td><span class="status-badge ${getStatusClass(order.production_status)}">${order.production_status}</span></td>
-            <td>${formatTechnologies(order.technologies, order.tech_colors)}</td>
+            <td>${formatDate(order.completion_date)}</td>
+            <td>${order.salesperson || '-'}</td>
+            <td>${order.technology_name || '-'}</td>
             <td>
-                <button class="btn btn-sm btn-secondary" onclick="editOrder(${order.id})" title="Upravit">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="deleteOrder(${order.id})" title="Smazat">
-                    <i class="fas fa-trash"></i>
+                <button class="btn btn-sm btn-secondary" onclick="showOrderDetails(${order.id})" title="Detail">
+                    <i class="fas fa-eye"></i>
                 </button>
             </td>
         </tr>
     `).join('');
 }
 
-function updateOrderSelects() {
-    const selects = document.querySelectorAll('#scheduleOrderId');
-    
-    selects.forEach(select => {
-        select.innerHTML = '<option value="">Vyberte objednávku...</option>';
-        currentOrders.forEach(order => {
-            const option = document.createElement('option');
-            option.value = order.id;
-            option.textContent = `${order.order_code} - ${order.catalog || 'Bez katalogu'}`;
-            select.appendChild(option);
-        });
-    });
-}
-
-// Vyhledávání v objednávkách
-function searchOrders() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    const filteredOrders = currentOrders.filter(order => 
-        order.order_code.toLowerCase().includes(searchTerm) ||
-        (order.catalog && order.catalog.toLowerCase().includes(searchTerm))
-    );
-    displayOrders(filteredOrders);
-}
-
-// Modaly
+// Modaly a formuláře
 function showAddOrderModal() {
+    if (!userPermissions.canEditOrders) return;
+    
     document.getElementById('orderModalTitle').textContent = 'Nová objednávka';
     document.getElementById('orderForm').reset();
     document.getElementById('orderId').value = '';
@@ -174,6 +463,8 @@ function showAddOrderModal() {
 }
 
 function editOrder(orderId) {
+    if (!userPermissions.canEditOrders) return;
+    
     const order = currentOrders.find(o => o.id == orderId);
     if (!order) return;
     
@@ -188,6 +479,7 @@ function editOrder(orderId) {
     document.getElementById('previewStatus').value = order.preview_status;
     document.getElementById('productionStatus').value = order.production_status;
     document.getElementById('notes').value = order.notes || '';
+    document.getElementById('salesperson').value = order.salesperson || '';
     
     document.getElementById('orderModal').style.display = 'block';
 }
@@ -204,7 +496,8 @@ async function saveOrder(event) {
         goods_stocked_date: document.getElementById('goodsStockedDate').value || null,
         preview_status: document.getElementById('previewStatus').value,
         production_status: document.getElementById('productionStatus').value,
-        notes: document.getElementById('notes').value
+        notes: document.getElementById('notes').value,
+        salesperson: document.getElementById('salesperson').value
     };
     
     const orderId = document.getElementById('orderId').value;
@@ -212,7 +505,6 @@ async function saveOrder(event) {
     try {
         let response;
         if (orderId) {
-            // Úprava existující objednávky
             formData.id = parseInt(orderId);
             response = await fetch(`${API_URL}/orders`, {
                 method: 'PUT',
@@ -220,7 +512,6 @@ async function saveOrder(event) {
                 body: JSON.stringify(formData)
             });
         } else {
-            // Nová objednávka
             response = await fetch(`${API_URL}/orders`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -234,6 +525,7 @@ async function saveOrder(event) {
             showNotification(orderId ? 'Objednávka upravena' : 'Objednávka vytvořena', 'success');
             closeModal('orderModal');
             loadOrders();
+            loadCompletedOrders();
         } else {
             showNotification('Chyba při ukládání: ' + (result.error || 'Neznámá chyba'), 'error');
         }
@@ -243,280 +535,127 @@ async function saveOrder(event) {
     }
 }
 
-async function deleteOrder(orderId) {
-    if (!confirm('Opravdu chcete smazat tuto objednávku?')) return;
+function updateOrderSelects() {
+    const selects = document.querySelectorAll('#scheduleOrderId');
     
-    try {
-        const response = await fetch(`${API_URL}/orders`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: orderId })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showNotification('Objednávka smazána', 'success');
-            loadOrders();
-        } else {
-            showNotification('Chyba při mazání objednávky', 'error');
+    selects.forEach(select => {
+        if (select) {
+            select.innerHTML = '<option value="">Vyberte objednávku...</option>';
+            currentOrders.forEach(order => {
+                const option = document.createElement('option');
+                option.value = order.id;
+                option.textContent = `${order.order_code} - ${order.catalog || 'Bez katalogu'}`;
+                select.appendChild(option);
+            });
         }
-    } catch (error) {
-        console.error('Chyba při mazání objednávky:', error);
-        showNotification('Chyba při mazání objednávky', 'error');
-    }
+    });
 }
 
-// Výrobní plán
-function showAddScheduleModal() {
-    document.getElementById('scheduleModal').style.display = 'block';
+// Drag & Drop pro kalendář
+function allowDrop(event) {
+    event.preventDefault();
 }
 
-async function loadSchedule() {
-    const container = document.getElementById('scheduleCalendar');
-    container.innerHTML = '<div class="loading">Načítání výrobního plánu...</div>';
+function drag(event) {
+    event.dataTransfer.setData("text", event.target.getAttribute('data-schedule-id'));
+}
+
+function drop(event) {
+    event.preventDefault();
+    if (!userPermissions.canEditSchedule) return;
     
-    try {
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
-        
-        const response = await fetch(`${API_URL}/schedule?start=${startDate}&end=${endDate}`);
-        currentSchedule = await response.json();
-        
-        displaySchedule(currentSchedule);
-    } catch (error) {
-        console.error('Chyba při načítání plánu:', error);
-        container.innerHTML = '<div class="loading">Chyba při načítání plánu</div>';
-        showNotification('Chyba při načítání výrobního plánu', 'error');
-    }
+    const scheduleId = event.dataTransfer.getData("text");
+    const targetCell = event.currentTarget;
+    const newDate = targetCell.getAttribute('data-date');
+    const newTechnology = targetCell.getAttribute('data-technology');
+    
+    // Zde by byla implementace pro přesun položky v kalendáři
+    console.log(`Přesun položky ${scheduleId} na ${newDate} pro technologii ${newTechnology}`);
 }
 
-function displaySchedule(schedule) {
-    const container = document.getElementById('scheduleCalendar');
+// Blokace/dovolená
+function showBlockModal() {
+    if (!userPermissions.canEditSchedule) return;
     
-    if (schedule.length === 0) {
-        container.innerHTML = '<div class="loading">Žádné položky v plánu</div>';
+    document.getElementById('blockModal').style.display = 'block';
+}
+
+function addBlock(event) {
+    event.preventDefault();
+    // Implementace přidání blokace
+    console.log('Přidání blokace/dovolené');
+    closeModal('blockModal');
+}
+
+// Filtrace kalendáře podle technologie
+function filterCalendarByTechnology(technology) {
+    const rows = document.querySelectorAll('.calendar-row');
+    
+    rows.forEach(row => {
+        if (technology === 'all') {
+            row.style.display = 'flex';
+        } else {
+            const rowTech = row.getAttribute('data-technology');
+            row.style.display = rowTech === technology ? 'flex' : 'none';
+        }
+    });
+}
+
+// Historie
+function loadHistory() {
+    if (!userPermissions.canViewHistory) return;
+    
+    const tableFilter = document.getElementById('historyTableFilter')?.value || '';
+    const dateFilter = document.getElementById('historyDateFilter')?.value || '';
+    
+    let url = `${API_URL}/history?`;
+    const params = new URLSearchParams();
+    
+    if (tableFilter) params.append('table', tableFilter);
+    if (dateFilter) {
+        params.append('date_from', dateFilter);
+        params.append('date_to', dateFilter);
+    }
+    
+    url += params.toString();
+    
+    fetch(url)
+        .then(response => response.json())
+        .then(data => displayHistory(data))
+        .catch(error => console.error('Chyba při načítání historie:', error));
+}
+
+function displayHistory(historyData) {
+    const historyList = document.getElementById('historyList');
+    if (!historyList) return;
+    
+    if (!historyData || historyData.length === 0) {
+        historyList.innerHTML = '<p class="no-data">Žádné záznamy nenalezeny</p>';
         return;
     }
     
-    container.innerHTML = schedule.map(item => `
-        <div class="schedule-item" style="border-left-color: ${item.color}">
-            <h4>${item.order_code} - ${item.catalog || 'Bez katalogu'}</h4>
-            <div class="date-range">
-                <i class="fas fa-calendar"></i>
-                ${formatDate(item.start_date)} - ${formatDate(item.end_date)}
+    historyList.innerHTML = historyData.map(item => `
+        <div class="history-item" data-action="${item.action}">
+            <div class="history-header">
+                <div>
+                    <span class="history-action">${getActionText(item.action)}</span>
+                    <span class="history-table">${getTableText(item.table_name)}</span>
+                    <span class="history-record">#${item.record_id}</span>
+                </div>
+                <div class="history-meta">
+                    <span class="history-user">${item.user_name}</span>
+                    <span class="history-date">${formatDateTime(item.created_at)}</span>
+                </div>
             </div>
-            <div class="tech-info">
-                <span class="tech-tag" style="background-color: ${item.color}">
-                    ${item.technology_name}
-                </span>
-                <span>Množství: ${item.quantity}</span>
-                ${item.is_locked ? '<i class="fas fa-lock" title="Uzamčeno"></i>' : ''}
-            </div>
+            ${item.description ? `<div class="history-details">${item.description}</div>` : ''}
         </div>
     `).join('');
 }
 
-async function saveSchedule(event) {
-    event.preventDefault();
-    
-    const formData = {
-        order_id: parseInt(document.getElementById('scheduleOrderId').value),
-        technology_id: parseInt(document.getElementById('scheduleTechId').value),
-        start_date: document.getElementById('scheduleStartDate').value,
-        end_date: document.getElementById('scheduleEndDate').value,
-        is_locked: document.getElementById('scheduleIsLocked').checked ? 1 : 0
-    };
-    
-    try {
-        const response = await fetch(`${API_URL}/schedule`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showNotification('Položka přidána do plánu', 'success');
-            closeModal('scheduleModal');
-            loadSchedule();
-        } else {
-            showNotification('Chyba při přidávání do plánu: ' + (result.error || 'Neznámá chyba'), 'error');
-        }
-    } catch (error) {
-        console.error('Chyba při ukládání plánu:', error);
-        showNotification('Chyba při ukládání do plánu', 'error');
-    }
-}
-
-// Statistiky
-async function loadAnalytics() {
-    try {
-        const response = await fetch(`${API_URL}/orders`);
-        const orders = await response.json();
-        
-        // Základní statistiky
-        const totalOrders = orders.length;
-        const inProgress = orders.filter(o => o.production_status === 'V_výrobě').length;
-        const completed = orders.filter(o => o.production_status === 'Hotovo').length;
-        const pendingApproval = orders.filter(o => o.preview_status === 'Čeká').length;
-        
-        // Aktualizace DOM
-        document.getElementById('totalOrders').textContent = totalOrders;
-        document.getElementById('inProgress').textContent = inProgress;
-        document.getElementById('completed').textContent = completed;
-        document.getElementById('pendingApproval').textContent = pendingApproval;
-        
-        // Jednoduchý graf technologií
-        updateTechChart(orders);
-        
-    } catch (error) {
-        console.error('Chyba při načítání statistik:', error);
-        showNotification('Chyba při načítání statistik', 'error');
-    }
-}
-
-
-
-async function importCSV() {
-    const importBtn = document.getElementById('importBtn');
-    const originalText = importBtn.innerHTML;
-    
-    // Změnit stav tlačítka
-    importBtn.disabled = true;
-    importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importuji...';
-    
-    try {
-        console.log('Spouštím import CSV...');
-        
-        const response = await fetch('import_csv.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-        });
-        
-        console.log('Response status:', response.status);
-        console.log('Response headers:', response.headers);
-        
-        // Získat raw text pro debugging
-        const responseText = await response.text();
-        console.log('Raw response:', responseText);
-        
-        // Zkusit parsovat JSON
-        let result;
-        try {
-            result = JSON.parse(responseText);
-        } catch (jsonError) {
-            console.error('JSON parse error:', jsonError);
-            console.error('Response text that failed to parse:', responseText);
-            throw new Error(`Server nevrátil validní JSON. Response: ${responseText.substring(0, 200)}...`);
-        }
-        
-        console.log('Parsed result:', result);
-        
-        if (result.success) {
-            showNotification(
-                `CSV import úspěšný! Zpracováno ${result.processed_count} objednávek.`, 
-                'success'
-            );
-            
-            // Znovu načíst data
-            await loadOrders();
-            if (typeof loadAnalytics === 'function') {
-                await loadAnalytics();
-            }
-            
-        } else {
-            console.error('Import error:', result);
-            showNotification(`Chyba při importu: ${result.error}`, 'error');
-            
-            // Zobrazit debug informace pokud jsou dostupné
-            if (result.debug) {
-                console.log('Debug info:', result.debug);
-            }
-        }
-        
-    } catch (error) {
-        console.error('Kompletní chyba při importu CSV:', error);
-        showNotification(`Chyba při komunikaci se serverem: ${error.message}`, 'error');
-    } finally {
-        // Obnovit původní stav tlačítka
-        importBtn.disabled = false;
-        importBtn.innerHTML = originalText;
-    }
-}
-
-// Notifikace (pokud ještě nemáte)
-function showNotification(message, type = 'info') {
-    // Vytvořit notifikační element
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-        <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation-triangle' : 'info'}"></i>
-        ${message}
-    `;
-    
-    // Přidat do stránky
-    document.body.appendChild(notification);
-    
-    // Animace zobrazení
-    setTimeout(() => notification.classList.add('show'), 100);
-    
-    // Automatické odstranění po 5 sekundách
-    setTimeout(() => {
-        notification.classList.remove('show');
-        setTimeout(() => notification.remove(), 300);
-    }, 5000);
-}
-
-
-
-function updateTechChart(orders) {
-    const chartContainer = document.getElementById('techChart');
-    
-    // Spočítání použití technologií
-    const techCount = {};
-    orders.forEach(order => {
-        if (order.technologies) {
-            const techs = order.technologies.split(', ');
-            techs.forEach(tech => {
-                if (tech && tech !== '') {
-                    techCount[tech] = (techCount[tech] || 0) + 1;
-                }
-            });
-        }
-    });
-    
-    if (Object.keys(techCount).length === 0) {
-        chartContainer.innerHTML = 'Žádná data o technologiích';
-        return;
-    }
-    
-    // Jednoduchý sloupcový graf
-    const maxCount = Math.max(...Object.values(techCount));
-    const chartHtml = Object.entries(techCount)
-        .sort((a, b) => b[1] - a[1])
-        .map(([tech, count]) => {
-            const percentage = (count / maxCount) * 100;
-            return `
-                <div style="display: flex; align-items: center; margin-bottom: 10px;">
-                    <div style="width: 100px; font-size: 0.9rem;">${tech}</div>
-                    <div style="flex: 1; background: #e2e8f0; height: 20px; border-radius: 10px; margin: 0 10px; overflow: hidden;">
-                        <div style="width: ${percentage}%; height: 100%; background: #4299e1; border-radius: 10px;"></div>
-                    </div>
-                    <div style="width: 30px; text-align: right; font-weight: bold;">${count}</div>
-                </div>
-            `;
-        }).join('');
-    
-    chartContainer.innerHTML = chartHtml;
-}
-
 // Pomocné funkce
 function closeModal(modalId) {
-    document.getElementById(modalId).style.display = 'none';
+    const modal = document.getElementById(modalId);
+    if (modal) modal.style.display = 'none';
 }
 
 function formatDate(dateString) {
@@ -525,9 +664,15 @@ function formatDate(dateString) {
     return date.toLocaleDateString('cs-CZ');
 }
 
+function formatDateTime(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString('cs-CZ');
+}
+
 function getStatusClass(status) {
     const statusMap = {
-        'Čeká': 'status-pending',
+        'Čeká': 'status-waiting',
         'Schváleno': 'status-approved',
         'Zamítnuto': 'status-rejected',
         'Čekající': 'status-waiting',
@@ -537,32 +682,33 @@ function getStatusClass(status) {
     return statusMap[status] || '';
 }
 
-function formatTechnologies(technologies, colors) {
-    if (!technologies) return '-';
-    
-    const techArray = technologies.split(', ');
-    const colorArray = colors ? colors.split(', ') : [];
-    
-    return techArray.map((tech, index) => {
-        const color = colorArray[index] || '#4299e1';
-        return `<span class="tech-tag" style="background-color: ${color}">${tech}</span>`;
-    }).join('');
+function getActionText(action) {
+    const actions = {
+        'INSERT': 'Vytvořeno',
+        'UPDATE': 'Změněno',
+        'DELETE': 'Smazáno'
+    };
+    return actions[action] || action;
 }
 
-function setupDateInputs() {
-    const today = new Date().toISOString().split('T')[0];
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + 30);
-    
-    document.getElementById('startDate').value = today;
-    document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
-    document.getElementById('scheduleStartDate').value = today;
-    document.getElementById('scheduleEndDate').value = today;
+function getTableText(tableName) {
+    const tables = {
+        'orders': 'objednávka',
+        'production_schedule': 'výrobní plán',
+        'users': 'uživatel'
+    };
+    return tables[tableName] || tableName;
 }
 
 function showNotification(message, type = 'info') {
-    // Jednoduchá notifikace - můžete nahradit toast knihovnou
     const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation-triangle' : 'info'}"></i>
+        ${message}
+    `;
+    
+    // Stylování
     notification.style.cssText = `
         position: fixed;
         top: 20px;
@@ -572,26 +718,34 @@ function showNotification(message, type = 'info') {
         color: white;
         font-weight: 500;
         z-index: 10000;
-        max-width: 300px;
+        max-width: 350px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
     `;
     
     switch(type) {
         case 'success':
-            notification.style.backgroundColor = '#48bb78';
+            notification.style.backgroundColor = '#10b981';
             break;
         case 'error':
-            notification.style.backgroundColor = '#f56565';
+            notification.style.backgroundColor = '#ef4444';
             break;
         default:
-            notification.style.backgroundColor = '#4299e1';
+            notification.style.backgroundColor = '#3b82f6';
     }
     
-    notification.textContent = message;
     document.body.appendChild(notification);
     
+    // Animace příchodu
     setTimeout(() => {
-        notification.remove();
+        notification.style.transform = 'translateX(0)';
+    }, 100);
+    
+    // Automatické odstranění
+    setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => notification.remove(), 300);
     }, 4000);
 }
 
@@ -604,3 +758,18 @@ window.onclick = function(event) {
         }
     });
 }
+
+// Export funkcí pro globální použití
+window.showAddOrderModal = showAddOrderModal;
+window.editOrder = editOrder;
+window.saveOrder = saveOrder;
+window.showOrderDetails = showOrderDetails;
+window.navigateWeek = navigateWeek;
+window.filterOrders = filterOrders;
+window.showBlockModal = showBlockModal;
+window.addBlock = addBlock;
+window.loadHistory = loadHistory;
+window.closeModal = closeModal;
+window.allowDrop = allowDrop;
+window.drag = drag;
+window.drop = drop;

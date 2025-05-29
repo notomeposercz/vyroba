@@ -1,5 +1,10 @@
 <?php
-// Základní konfigurace
+require_once 'auth.php';
+require_once 'config.php';
+
+// Vyžadovat přihlášení
+requireLogin();
+
 date_default_timezone_set('Europe/Prague');
 ?>
 <!DOCTYPE html>
@@ -10,9 +15,10 @@ date_default_timezone_set('Europe/Prague');
     <title>Výrobní systém - <?php echo date('d.m.Y'); ?></title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="style-calendar.css">
+    <link rel="stylesheet" href="style_auth.css">
+    <link rel="stylesheet" href="style_calendar.css">
 </head>
-<body class="calendar-layout">
+<body class="calendar-layout role-<?php echo $_SESSION['role']; ?>">
     <!-- Header -->
     <header class="main-header">
         <div class="header-content">
@@ -25,13 +31,21 @@ date_default_timezone_set('Europe/Prague');
             <div class="header-right">
                 <span class="user-info">
                     <i class="fas fa-user"></i> 
-                    Přihlášen: <?php echo 'notomeposercz'; ?> (Výroba)
+                    Přihlášen: <strong><?php echo htmlspecialchars($_SESSION['full_name']); ?></strong> 
+                    <span class="user-role">(<?php echo getRoleDisplayName($_SESSION['role']); ?>)</span>
                 </span>
                 <span class="date-info">
                     <i class="fas fa-calendar"></i> 
                     <?php echo date('d.m.Y H:i'); ?>
                 </span>
-                <button class="logout-btn">
+                
+                <?php if (hasPermission('view_history')): ?>
+                <button class="history-btn" onclick="showHistoryModal()">
+                    <i class="fas fa-history"></i> Historie
+                </button>
+                <?php endif; ?>
+                
+                <button class="logout-btn" onclick="logout()">
                     <i class="fas fa-sign-out-alt"></i> Odhlásit
                 </button>
             </div>
@@ -49,11 +63,11 @@ date_default_timezone_set('Europe/Prague');
             <!-- Filters -->
             <div class="panel-filters">
                 <input type="text" id="orderSearchInput" placeholder="Filtrovat produkt/kód..." 
-                       class="filter-input" onkeyup="filterOrders()">
+                       class="filter-input">
                 <div class="filter-row">
                     <input type="date" id="orderDateFilter" class="filter-input" 
-                           title="Filtrovat podle data vytvoření" onchange="filterOrders()">
-                    <select id="orderStatusFilter" class="filter-input" onchange="filterOrders()">
+                           title="Filtrovat podle data vytvoření">
+                    <select id="orderStatusFilter" class="filter-input">
                         <option value="all">Všechny stavy</option>
                         <option value="Čekající">Čekající</option>
                         <option value="V_výrobě">V výrobě</option>
@@ -64,15 +78,17 @@ date_default_timezone_set('Europe/Prague');
             
             <!-- Orders List -->
             <div id="pendingOrdersList" class="orders-list">
-                <!-- Orders will be loaded here -->
+                <div class="loading">Načítání objednávek...</div>
             </div>
             
             <!-- Add Order Button -->
+            <?php if (hasPermission('edit_orders')): ?>
             <div class="panel-footer">
                 <button class="btn btn-primary btn-full" onclick="showAddOrderModal()">
                     <i class="fas fa-plus"></i> Nová objednávka
                 </button>
             </div>
+            <?php endif; ?>
         </aside>
 
         <!-- Main Calendar Section -->
@@ -95,7 +111,7 @@ date_default_timezone_set('Europe/Prague');
                 <button class="nav-btn" onclick="navigateWeek(-1)">
                     <i class="fas fa-chevron-left"></i> Předchozí
                 </button>
-                <span class="week-display" id="weekDisplay">Týden (28.4. - 2.5. 2025)</span>
+                <span class="week-display" id="weekDisplay">Načítání...</span>
                 <button class="nav-btn" onclick="navigateWeek(1)">
                     Další <i class="fas fa-chevron-right"></i>
                 </button>
@@ -103,15 +119,17 @@ date_default_timezone_set('Europe/Prague');
 
             <!-- Calendar Grid -->
             <div id="calendarGrid" class="calendar-grid">
-                <!-- Calendar days will be generated here -->
+                <div class="loading">Načítání kalendáře...</div>
             </div>
             
             <!-- Calendar Actions -->
+            <?php if (hasPermission('edit_schedule')): ?>
             <div class="panel-footer">
                 <button class="btn btn-primary" onclick="showBlockModal()">
                     <i class="fas fa-plus"></i> Vložit dovolenou/blokaci
                 </button>
             </div>
+            <?php endif; ?>
         </section>
 
         <!-- Right Sidebar - Order Details -->
@@ -143,171 +161,41 @@ date_default_timezone_set('Europe/Prague');
                     </tr>
                 </thead>
                 <tbody>
-                    <!-- Completed orders will be loaded here -->
+                    <tr><td colspan="5" class="loading">Načítání...</td></tr>
                 </tbody>
             </table>
         </div>
     </footer>
 
-    <!-- Původní modaly pro kompatibilitu -->
-    <!-- Modal pro novou objednávku -->
-    <div id="orderModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('orderModal')">&times;</span>
-            <h2 id="orderModalTitle">Nová objednávka</h2>
-            <form id="orderForm" onsubmit="saveOrder(event)">
-                <input type="hidden" id="orderId">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Kód objednávky:</label>
-                        <input type="text" id="orderCode" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Katalog:</label>
-                        <input type="text" id="catalog">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Množství:</label>
-                        <input type="number" id="quantity" required min="1">
-                    </div>
-                    <div class="form-group">
-                        <label>Datum objednání:</label>
-                        <input type="date" id="orderDate" required value="<?php echo date('Y-m-d'); ?>">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Objednáno zboží:</label>
-                        <input type="date" id="goodsOrderedDate">
-                    </div>
-                    <div class="form-group">
-                        <label>Naskladněno zboží:</label>
-                        <input type="date" id="goodsStockedDate">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Stav náhledu:</label>
-                        <select id="previewStatus">
-                            <option value="Čeká">Čeká</option>
-                            <option value="Schváleno">Schváleno</option>
-                            <option value="Zamítnuto">Zamítnuto</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Stav výroby:</label>
-                        <select id="productionStatus">
-                            <option value="Čekající">Čekající</option>
-                            <option value="V_výrobě">V výrobě</option>
-                            <option value="Hotovo">Hotovo</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Technologie:</label>
-                    <select id="technology">
-                        <option value="">Vyberte technologii</option>
-                        <option value="Sítotisk">Sítotisk</option>
-                        <option value="Potisk">Potisk</option>
-                        <option value="Gravírování">Gravírování</option>
-                        <option value="Výšivka">Výšivka</option>
-                        <option value="Laser">Laser</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Poznámky:</label>
-                    <textarea id="notes" rows="3"></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('orderModal')">Zrušit</button>
-                    <button type="submit" class="btn btn-primary">Uložit</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    <!-- Modaly -->
+    <?php include 'modals.php'; ?>
 
-    <!-- Modal pro výrobní plán -->
-    <div id="scheduleModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('scheduleModal')">&times;</span>
-            <h2>Přidat do výrobního plánu</h2>
-            <form id="scheduleForm" onsubmit="saveSchedule(event)">
-                <div class="form-group">
-                    <label>Objednávka:</label>
-                    <select id="scheduleOrderId" required>
-                        <option value="">Vyberte objednávku...</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Technologie:</label>
-                    <select id="scheduleTechId" required>
-                        <option value="">Vyberte technologii...</option>
-                    </select>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Datum začátku:</label>
-                        <input type="date" id="scheduleStartDate" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Datum konce:</label>
-                        <input type="date" id="scheduleEndDate" required>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="scheduleIsLocked"> Uzamknout v plánu
-                    </label>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('scheduleModal')">Zrušit</button>
-                    <button type="submit" class="btn btn-primary">Uložit</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Block/Holiday Modal -->
-    <div id="blockModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('blockModal')">&times;</span>
-            <h2><i class="fas fa-ban"></i> Vložit blokaci/dovolenou</h2>
-            <form id="blockForm" onsubmit="addBlock(event)">
-                <div class="form-group">
-                    <label>Typ blokace:</label>
-                    <select id="blockType" name="blockType" required>
-                        <option value="">Vyberte typ</option>
-                        <option value="dovolena">Dovolená</option>
-                        <option value="udrzba">Údržba</option>
-                        <option value="svatek">Svátek</option>
-                        <option value="jine">Jiné</option>
-                    </select>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Od data:</label>
-                        <input type="date" id="blockStartDate" name="blockStartDate" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Do data:</label>
-                        <input type="date" id="blockEndDate" name="blockEndDate" required>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Poznámka:</label>
-                    <textarea id="blockNote" name="blockNote" rows="3"></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('blockModal')">Zrušit</button>
-                    <button type="submit" class="btn btn-primary">Uložit</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
+    <script>
+        // Globální proměnné pro oprávnění
+        const userPermissions = {
+            canEditOrders: <?php echo hasPermission('edit_orders') ? 'true' : 'false'; ?>,
+            canEditSchedule: <?php echo hasPermission('edit_schedule') ? 'true' : 'false'; ?>,
+            canEditPreview: <?php echo hasPermission('edit_preview_status') ? 'true' : 'false'; ?>,
+            canViewHistory: <?php echo hasPermission('view_history') ? 'true' : 'false'; ?>
+        };
+        
+        const userRole = '<?php echo $_SESSION['role']; ?>';
+        
+        function logout() {
+            document.getElementById('logoutModal').style.display = 'block';
+        }
+        
+        function confirmLogout() {
+            window.location.href = 'logout.php';
+        }
+        
+        function showHistoryModal() {
+            if (userPermissions.canViewHistory) {
+                document.getElementById('historyModal').style.display = 'block';
+                loadHistory();
+            }
+        }
+    </script>
     <script src="script.js"></script>
-    <script src="script-calendar.js"></script>
 </body>
 </html>

@@ -1,10 +1,9 @@
 <?php
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
-header('Access-Control-Allow-Headers: Content-Type');
-
 require_once 'config.php';
+require_once 'auth.php';
+
+// Vyžadovat přihlášení pro API
+requireLogin();
 
 class ProductionAPI {
     private $pdo;
@@ -27,6 +26,8 @@ class ProductionAPI {
                 return $this->handleSchedule($method);
             case 'technologies':
                 return $this->handleTechnologies($method);
+            case 'history':
+                return $this->handleHistory($method);
             default:
                 http_response_code(404);
                 return ['error' => 'Endpoint not found'];
@@ -36,8 +37,22 @@ class ProductionAPI {
     private function handleOrders($method) {
         switch ($method) {
             case 'GET':
+                if (!hasPermission('view_orders')) {
+                    http_response_code(403);
+                    return ['error' => 'Insufficient permissions'];
+                }
                 return $this->getOrders();
+            case 'POST':
+                if (!hasPermission('edit_orders')) {
+                    http_response_code(403);
+                    return ['error' => 'Insufficient permissions'];
+                }
+                return $this->createOrder();
             case 'PUT':
+                if (!hasPermission('edit_orders')) {
+                    http_response_code(403);
+                    return ['error' => 'Insufficient permissions'];
+                }
                 return $this->updateOrder();
             default:
                 http_response_code(405);
@@ -67,25 +82,114 @@ class ProductionAPI {
         return $stmt->fetchAll();
     }
     
+    private function createOrder() {
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $sql = "INSERT INTO orders (order_code, catalog, quantity, order_date, goods_ordered_date, goods_stocked_date, preview_status, production_status, notes, salesperson)
+                VALUES (:order_code, :catalog, :quantity, :order_date, :goods_ordered_date, :goods_stocked_date, :preview_status, :production_status, :notes, :salesperson)";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $result = $stmt->execute($input);
+        
+        if ($result) {
+            $orderId = $this->pdo->lastInsertId();
+            logUserAction($this->pdo, 'orders', $orderId, 'INSERT', null, $input, 'Vytvořena nová objednávka');
+        }
+        
+        return ['success' => $result, 'id' => $orderId ?? null];
+    }
+    
     private function updateOrder() {
         $input = json_decode(file_get_contents('php://input'), true);
+        $orderId = $input['id'];
+        
+        // Získat původní hodnoty
+        $stmt = $this->pdo->prepare("SELECT * FROM orders WHERE id = ?");
+        $stmt->execute([$orderId]);
+        $oldValues = $stmt->fetch();
+        
+        // Kontrola oprávnění pro stav náhledu
+        if (isset($input['preview_status']) && !hasPermission('edit_preview_status') && $_SESSION['role'] !== 'admin') {
+            unset($input['preview_status']);
+        }
         
         $sql = "UPDATE orders SET 
                 preview_status = :preview_status,
                 preview_approved_date = :preview_approved_date,
                 shipping_date = :shipping_date,
-                production_status = :production_status
+                production_status = :production_status,
+                notes = :notes,
+                salesperson = :salesperson
                 WHERE id = :id";
         
         $stmt = $this->pdo->prepare($sql);
-        return $stmt->execute($input);
+        $result = $stmt->execute($input);
+        
+        if ($result) {
+            logUserAction($this->pdo, 'orders', $orderId, 'UPDATE', $oldValues, $input, 'Aktualizována objednávka');
+        }
+        
+        return ['success' => $result];
     }
     
+    private function handleHistory($method) {
+        if ($method === 'GET') {
+            if (!hasPermission('view_history')) {
+                http_response_code(403);
+                return ['error' => 'Insufficient permissions'];
+            }
+            return $this->getHistory();
+        }
+        
+        http_response_code(405);
+        return ['error' => 'Method not allowed'];
+    }
+    
+    private function getHistory() {
+        $tableName = $_GET['table'] ?? '';
+        $dateFrom = $_GET['date_from'] ?? '';
+        $dateTo = $_GET['date_to'] ?? '';
+        
+        $sql = "SELECT ch.*, u.full_name as user_name
+                FROM change_history ch
+                JOIN users u ON ch.user_id = u.id
+                WHERE 1=1";
+        
+        $params = [];
+        
+        if ($tableName) {
+            $sql .= " AND ch.table_name = :table_name";
+            $params['table_name'] = $tableName;
+        }
+        
+        if ($dateFrom) {
+            $sql .= " AND DATE(ch.created_at) >= :date_from";
+            $params['date_from'] = $dateFrom;
+        }
+        
+        if ($dateTo) {
+            $sql .= " AND DATE(ch.created_at) <= :date_to";
+            $params['date_to'] = $dateTo;
+        }
+        
+        $sql .= " ORDER BY ch.created_at DESC LIMIT 100";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        
+        return $stmt->fetchAll();
+    }
+    
+    // Ostatní metody zůstávají stejné...
     private function handleSchedule($method) {
         switch ($method) {
             case 'GET':
                 return $this->getSchedule();
             case 'POST':
+                if (!hasPermission('edit_schedule')) {
+                    http_response_code(403);
+                    return ['error' => 'Insufficient permissions'];
+                }
                 return $this->createScheduleEntry();
             default:
                 http_response_code(405);

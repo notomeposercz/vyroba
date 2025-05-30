@@ -15,6 +15,7 @@ class ProductionAPI {
     
     public function __construct($pdo) {
         $this->pdo = $pdo;
+        $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
     
     public function handleRequest() {
@@ -205,20 +206,21 @@ private function updateOrder($orderId) {
                 FROM orders o
                 LEFT JOIN production_schedule ps ON o.id = ps.order_id
                 LEFT JOIN technologies t ON ps.technology_id = t.id";
-        
         if ($status !== 'all') {
             $sql .= " WHERE o.production_status = :status";
         }
-        
         $sql .= " ORDER BY o.order_date DESC";
-        
-        $stmt = $this->pdo->prepare($sql);
-        if ($status !== 'all') {
-            $stmt->bindParam(':status', $status);
+        try {
+            $stmt = $this->pdo->prepare($sql);
+            if ($status !== 'all') {
+                $stmt->bindParam(':status', $status);
+            }
+            $stmt->execute();
+            return $stmt->fetchAll();
+        } catch (PDOException $e) {
+            http_response_code(500);
+            return ['success' => false, 'error' => 'Chyba při SELECT orders: ' . $e->getMessage()];
         }
-        $stmt->execute();
-        
-        return $stmt->fetchAll();
     }
     
     private function createOrder() {
@@ -383,10 +385,14 @@ private function updateOrder($orderId) {
     
     private function handleTechnologies($method) {
         if ($method === 'GET') {
-            $stmt = $this->pdo->query("SELECT * FROM technologies ORDER BY name");
-            return $stmt->fetchAll();
+            try {
+                $stmt = $this->pdo->query("SELECT * FROM technologies ORDER BY name");
+                return $stmt->fetchAll();
+            } catch (PDOException $e) {
+                http_response_code(500);
+                return ['success' => false, 'error' => 'Chyba při SELECT technologies: ' . $e->getMessage()];
+            }
         }
-        
         http_response_code(405);
         return ['error' => 'Method not allowed'];
     }

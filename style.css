@@ -511,3 +511,58 @@ input:focus, select:focus, textarea:focus {
     background-color: #218838;
     border-color: #1e7e34;
 }
+
+/* Blokace v kalendáři */
+.calendar-block {
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    padding: 4px 8px;
+    margin: 2px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.block-dovolena {
+    background: rgba(59, 130, 246, 0.9);
+}
+
+.block-udrzba {
+    background: rgba(245, 158, 11, 0.9);
+}
+
+.block-svatek {
+    background: rgba(16, 185, 129, 0.9);
+}
+
+.block-jine {
+    background: rgba(107, 114, 128, 0.9);
+}
+
+.block-label {
+    font-weight: 700;
+    font-size: 0.75rem;
+}
+
+.block-note {
+    font-size: 0.65rem;
+    opacity: 0.9;
+    margin-top: 2px;
+}
+
+/* Úprava buněk kalendáře pro lepší zobrazení blokací */
+.calendar-cell {
+    position: relative;
+    min-height: 100px;
+}
+
+.calendar-block {
+    position: relative;
+    z-index: 10;
+}
+
+.schedule-order {
+    position: relative;
+    z-index: 5;
+}

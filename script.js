@@ -321,6 +321,7 @@ function showOrderDetails(orderId) {
 function loadCalendar() {
     generateCalendarGrid();
     loadScheduleData();
+    loadAndDisplayBlocks(); // PŘIDAT TOTO
 }
 
 function generateCalendarGrid() {
@@ -390,6 +391,57 @@ async function loadScheduleData() {
     }
 }
 
+async function loadAndDisplayBlocks() {
+    try {
+        const weekEnd = new Date(currentWeekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        
+        const startDate = currentWeekStart.toISOString().split('T')[0];
+        const endDate = weekEnd.toISOString().split('T')[0];
+        
+        const response = await fetch(`${API_URL}/blocks?start=${startDate}&end=${endDate}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const blocks = await response.json();
+        
+        // Zobrazit blokace v kalendáři
+        blocks.forEach(block => {
+            const blockStart = new Date(block.start_date);
+            const blockEnd = new Date(block.end_date);
+            
+            // Pro každý den blokace
+            for (let date = new Date(blockStart); date <= blockEnd; date.setDate(date.getDate() + 1)) {
+                const dateStr = date.toISOString().split('T')[0];
+                
+                // Najít všechny buňky pro tento den
+                const cells = document.querySelectorAll(`[data-date="${dateStr}"]`);
+                
+                cells.forEach(cell => {
+                    const blockElement = document.createElement('div');
+                    blockElement.className = `calendar-block block-${block.type}`;
+                    blockElement.innerHTML = `
+                        <div class="block-label">${getBlockLabel(block.type)}</div>
+                        ${block.note ? `<div class="block-note">${block.note}</div>` : ''}
+                    `;
+                    cell.appendChild(blockElement);
+                });
+            }
+        });
+    } catch (error) {
+        console.error('Chyba při načítání blokací:', error);
+    }
+}
+
+function getBlockLabel(type) {
+    const labels = {
+        'dovolena': 'DOVOLENÁ',
+        'udrzba': 'ÚDRŽBA',
+        'svatek': 'SVÁTEK',
+        'jine': 'JINÉ'
+    };
+    return labels[type] || type.toUpperCase();
+}
+
 function displayScheduleOnCalendar(schedule) {
     // Vyčistit kalendář
     document.querySelectorAll('.calendar-cell').forEach(cell => {
@@ -431,7 +483,14 @@ function displayScheduleOnCalendar(schedule) {
 function navigateWeek(direction) {
     currentWeekStart.setDate(currentWeekStart.getDate() + (direction * 7));
     updateWeekDisplay();
-    loadCalendar();
+    
+    // Použít funkci ze script.js
+    if (typeof generateCalendarGrid === 'function') {
+        generateCalendarGrid();
+    }
+    
+    // Načíst blokace
+    loadBlocks();
 }
 
 // Dokončené objednávky
@@ -613,11 +672,49 @@ function showBlockModal() {
     document.getElementById('blockModal').style.display = 'block';
 }
 
-function addBlock(event) {
+async function addBlock(event) {
     event.preventDefault();
-    // Implementace přidání blokace
-    console.log('Přidání blokace/dovolené');
-    closeModal('blockModal');
+    
+    const blockType = document.getElementById('blockType').value;
+    const blockStartDate = document.getElementById('blockStartDate').value;
+    const blockEndDate = document.getElementById('blockEndDate').value;
+    const blockNote = document.getElementById('blockNote').value;
+    
+    if (!blockType || !blockStartDate || !blockEndDate) {
+        showNotification('Vyplňte všechny povinné údaje', 'error');
+        return;
+    }
+    
+    const blockData = {
+        type: blockType,
+        start_date: blockStartDate,
+        end_date: blockEndDate,
+        note: blockNote
+    };
+    
+    try {
+        const response = await fetch(`${API_URL}/blocks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(blockData)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            closeModal('blockModal');
+            showNotification('Blokace byla úspěšně přidána', 'success');
+            document.getElementById('blockForm').reset();
+            
+            // Obnovit kalendář
+            loadCalendar();
+        } else {
+            showNotification('Chyba při ukládání: ' + (result.error || 'Neznámá chyba'), 'error');
+        }
+    } catch (error) {
+        console.error('Chyba při ukládání blokace:', error);
+        showNotification('Chyba při komunikaci se serverem', 'error');
+    }
 }
 
 // Filtrace kalendáře podle technologie

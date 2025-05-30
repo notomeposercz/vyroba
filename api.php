@@ -68,31 +68,42 @@ class ProductionAPI {
         return $stmt->fetchAll();
     }
     
-    // PŘIDAT TUTO METODU
     private function createBlock() {
-        $input = json_decode(file_get_contents('php://input'), true);
-        
-        $sql = "INSERT INTO calendar_blocks (type, start_date, end_date, note, created_by, created_at)
-                VALUES (:type, :start_date, :end_date, :note, :created_by, NOW())";
-        
-        $data = [
-            'type' => $input['type'],
-            'start_date' => $input['start_date'],
-            'end_date' => $input['end_date'],
-            'note' => $input['note'] ?? null,
-            'created_by' => $_SESSION['user_id']
-        ];
-        
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    // Validace vstupů
+    if (!isset($input['type']) || !isset($input['start_date']) || !isset($input['end_date'])) {
+        http_response_code(400);
+        return ['error' => 'Chybí povinné údaje'];
+    }
+    
+    $sql = "INSERT INTO calendar_blocks (type, start_date, end_date, note, created_by, created_at)
+            VALUES (:type, :start_date, :end_date, :note, :created_by, NOW())";
+    
+    $data = [
+        'type' => $input['type'],
+        'start_date' => $input['start_date'],
+        'end_date' => $input['end_date'],
+        'note' => $input['note'] ?? null,
+        'created_by' => $_SESSION['user_id']
+    ];
+    
+    try {
         $stmt = $this->pdo->prepare($sql);
         $result = $stmt->execute($data);
         
         if ($result) {
             $blockId = $this->pdo->lastInsertId();
             logUserAction($this->pdo, 'calendar_blocks', $blockId, 'INSERT', null, $data, 'Vytvořena nová blokace');
+            return ['success' => true, 'id' => $blockId];
+        } else {
+            return ['success' => false, 'error' => 'Chyba při ukládání'];
         }
-        
-        return ['success' => $result, 'id' => $blockId ?? null];
+    } catch (PDOException $e) {
+        error_log('Chyba při ukládání blokace: ' . $e->getMessage());
+        return ['success' => false, 'error' => 'Databázová chyba'];
     }
+}
     
     // OPRAVIT UPDATEORDER METODU - NAHRADIT EXISTUJÍCÍ
     private function updateOrder() {

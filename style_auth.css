@@ -15,7 +15,9 @@
     font-weight: normal;
 }
 
-.history-btn {
+.history-btn,
+.logout-btn,
+.import-csv-btn {
     background: #6366f1;
     color: white;
     border: none;
@@ -24,6 +26,11 @@
     cursor: pointer;
     margin-right: 0.5rem;
     transition: background-color 0.2s;
+    font-size: 0.9rem; /* Sjednocená velikost */
+    height: 36px; /* Sjednocená výška */
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .history-btn:hover {
@@ -32,16 +39,18 @@
 
 .logout-btn {
     background: #ef4444;
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.2s;
 }
 
 .logout-btn:hover {
     background: #dc2626;
+}
+
+.import-csv-btn {
+    background: #8b5cf6;
+}
+
+.import-csv-btn:hover {
+    background: #7c3aed;
 }
 
 /* Historie modal styly */

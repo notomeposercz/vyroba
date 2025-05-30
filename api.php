@@ -1,8 +1,30 @@
 <?php
-// Tracy debugger
-require_once __DIR__ . '/tracy.phar';
-use Tracy\Debugger;
-Debugger::enable(Debugger::DEVELOPMENT, __DIR__ . '/log');
+// Tracy debugger - komentováno kvůli problémům na serveru
+// require_once __DIR__ . '/tracy.phar';
+// use Tracy\Debugger;
+// Debugger::enable(Debugger::DEVELOPMENT, __DIR__ . '/log');
+
+// Vlastní logging systém
+function writeLog($message, $level = 'INFO') {
+    $logFile = __DIR__ . '/debug.log';
+    $timestamp = date('Y-m-d H:i:s');
+    $logEntry = "[$timestamp] [$level] $message" . PHP_EOL;
+    error_log($logEntry, 3, $logFile);
+}
+
+// Nastavení PHP pro logování
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/php_errors.log');
+
+// Zachytit všechny chyby a výjimky
+set_error_handler(function($severity, $message, $file, $line) {
+    writeLog("PHP Error: $message in $file:$line", 'ERROR');
+    return false; // Nechej PHP pokračovat v normálním zpracování
+});
+
+set_exception_handler(function($exception) {
+    writeLog("Uncaught Exception: " . $exception->getMessage() . " in " . $exception->getFile() . ":" . $exception->getLine(), 'FATAL');
+});
 
 require_once 'config.php';
 require_once 'auth.php';
@@ -19,16 +41,22 @@ class ProductionAPI {
     }
     
     public function handleRequest() {
+        writeLog("=== Nový API request ===", 'DEBUG');
+        
         $method = $_SERVER['REQUEST_METHOD'];
         $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         $pathParts = explode('/', trim($path, '/'));
         
         $endpoint = $pathParts[array_search('api.php', $pathParts) + 1] ?? '';
         
+        writeLog("Method: $method, Path: $path, Endpoint: $endpoint", 'DEBUG');
+        writeLog("Full URI: " . $_SERVER['REQUEST_URI'], 'DEBUG');
+        
         switch ($endpoint) {
             case 'orders':
                 return $this->handleOrders($method);
             case 'schedule':
+                writeLog("Handling schedule endpoint", 'DEBUG');
                 return $this->handleSchedule($method);
             case 'technologies':
                 return $this->handleTechnologies($method);
@@ -37,6 +65,7 @@ class ProductionAPI {
             case 'blocks':  // NOVÝ ENDPOINT
                 return $this->handleBlocks($method);
             default:
+                writeLog("Endpoint '$endpoint' not found", 'WARNING');
                 http_response_code(404);
                 return ['error' => 'Endpoint not found'];
         }
@@ -289,16 +318,22 @@ private function updateOrder($orderId) {
     }
     
     private function handleSchedule($method) {
+        writeLog("handleSchedule called with method: $method", 'DEBUG');
+        
         switch ($method) {
             case 'GET':
+                writeLog("Handling GET schedule request", 'DEBUG');
                 return $this->getSchedule();
             case 'POST':
+                writeLog("Handling POST schedule request", 'DEBUG');
                 if (!hasPermission('edit_schedule')) {
+                    writeLog("Permission denied for edit_schedule", 'WARNING');
                     http_response_code(403);
                     return ['error' => 'Insufficient permissions'];
                 }
                 return $this->createScheduleEntry();
             default:
+                writeLog("Method $method not allowed for schedule", 'WARNING');
                 http_response_code(405);
                 return ['error' => 'Method not allowed'];
         }
@@ -322,44 +357,86 @@ private function updateOrder($orderId) {
     }
     
     private function createScheduleEntry() {
-        $input = json_decode(file_get_contents('php://input'), true);
-        if (!isset($input['order_id']) || !isset($input['planned_date'])) {
-            http_response_code(400);
-            return ['success' => false, 'error' => 'Chybí order_id nebo planned_date'];
-        }
-        $orderId = (int)$input['order_id'];
-        $plannedDate = $input['planned_date'];
-        $duration = isset($input['estimated_duration']) ? (int)$input['estimated_duration'] : 1;
-        $notes = array_key_exists('notes', $input) ? $input['notes'] : '';
+        writeLog("=== Začátek createScheduleEntry ===", 'DEBUG');
+        
         try {
+            // Načíst vstupní data
+            $input = json_decode(file_get_contents('php://input'), true);
+            writeLog("Vstupní data: " . json_encode($input), 'DEBUG');
+            
+            if (!$input) {
+                writeLog("Chyba: Žádná vstupní data nebo neplatný JSON", 'ERROR');
+                http_response_code(400);
+                return ['success' => false, 'error' => 'Neplatná vstupní data'];
+            }
+            
+            // Validace požadovaných polí
+            if (!isset($input['order_id']) || !isset($input['planned_date'])) {
+                writeLog("Chyba: Chybí order_id nebo planned_date", 'ERROR');
+                http_response_code(400);
+                return ['success' => false, 'error' => 'Chybí order_id nebo planned_date'];
+            }
+            
+            $orderId = (int)$input['order_id'];
+            $plannedDate = $input['planned_date'];
+            $duration = isset($input['estimated_duration']) ? (int)$input['estimated_duration'] : 1;
+            $notes = array_key_exists('notes', $input) ? $input['notes'] : '';
+            
+            writeLog("Zpracovávané hodnoty - Order ID: $orderId, Planned date: $plannedDate, Duration: $duration", 'DEBUG');
+            
+            // Načíst objednávku
             $stmt = $this->pdo->prepare('SELECT technology FROM orders WHERE id = :order_id');
             $stmt->execute(['order_id' => $orderId]);
             $order = $stmt->fetch();
+            
             if (!$order || !$order['technology']) {
+                writeLog("Chyba: Objednávka s ID $orderId neexistuje nebo nemá technologii", 'ERROR');
                 http_response_code(400);
                 return ['success' => false, 'error' => 'Objednávka nebo technologie nenalezena'];
             }
+            
+            writeLog("Objednávka nalezena s technologií: " . $order['technology'], 'DEBUG');
+            
+            // Najít ID technologie
             $stmt = $this->pdo->prepare('SELECT id FROM technologies WHERE name = :name');
             $stmt->execute(['name' => $order['technology']]);
             $tech = $stmt->fetch();
+            
             if (!$tech) {
+                writeLog("Chyba: Technologie '{$order['technology']}' nenalezena", 'ERROR');
                 http_response_code(400);
                 return ['success' => false, 'error' => 'Technologie nenalezena'];
             }
+            
             $technologyId = $tech['id'];
+            writeLog("Technologie ID: $technologyId", 'DEBUG');
+            
             $startDate = $plannedDate;
             $endDate = date('Y-m-d', strtotime("$plannedDate +" . max(1, $duration-1) . " days"));
+            
+            writeLog("Start date: $startDate, End date: $endDate", 'DEBUG');
+            
+            // Vložit do production_schedule
             $sql = "INSERT INTO production_schedule (order_id, start_date, end_date, technology_id, is_locked) VALUES (:order_id, :start_date, :end_date, :technology_id, 0)";
             $stmt = $this->pdo->prepare($sql);
+            
+            writeLog("SQL: $sql", 'DEBUG');
+            writeLog("Parametry: order_id=$orderId, start_date=$startDate, end_date=$endDate, technology_id=$technologyId", 'DEBUG');
+            
             $result = $stmt->execute([
                 'order_id' => $orderId,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'technology_id' => $technologyId
             ]);
+            
             if ($result) {
+                writeLog("Úspěšně vloženo do production_schedule", 'INFO');
+                writeLog("=== Konec createScheduleEntry - ÚSPĚCH ===", 'DEBUG');
                 return ['success' => true];
             } else {
+                writeLog("Chyba při vkládání - execute() vrátilo false", 'ERROR');
+                writeLog("Error info: " . json_encode($stmt->errorInfo()), 'ERROR');
                 http_response_code(500);
                 return [
                     'success' => false,
@@ -375,9 +452,13 @@ private function updateOrder($orderId) {
                 ];
             }
         } catch (PDOException $e) {
+            writeLog("PDO Exception v createScheduleEntry: " . $e->getMessage(), 'FATAL');
+            writeLog("PDO Code: " . $e->getCode(), 'FATAL');
             http_response_code(500);
             return ['success' => false, 'error' => 'Databázová výjimka: ' . $e->getMessage()];
         } catch (Throwable $e) {
+            writeLog("Obecná výjimka v createScheduleEntry: " . $e->getMessage(), 'FATAL');
+            writeLog("Stack trace: " . $e->getTraceAsString(), 'FATAL');
             http_response_code(500);
             return ['success' => false, 'error' => 'Obecná výjimka: ' . $e->getMessage()];
         }
@@ -399,5 +480,10 @@ private function updateOrder($orderId) {
 }
 
 $api = new ProductionAPI($pdo);
-echo json_encode($api->handleRequest());
+$response = $api->handleRequest();
+
+writeLog("API response: " . json_encode($response), 'DEBUG');
+writeLog("HTTP response code: " . http_response_code(), 'DEBUG');
+
+echo json_encode($response);
 ?>

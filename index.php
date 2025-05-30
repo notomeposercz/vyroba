@@ -175,6 +175,12 @@ date_default_timezone_set('Europe/Prague');
                 </button>
                 <?php endif; ?>
                 
+                <?php if (hasRole('admin')): ?>
+                <button class="history-btn" onclick="window.open('view_logs.php', '_blank')">
+                    <i class="fas fa-file-alt"></i> Logy
+                </button>
+                <?php endif; ?>
+                
                 <button class="logout-btn" onclick="logout()">
                     <i class="fas fa-sign-out-alt"></i> Odhlásit
                 </button>

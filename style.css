@@ -569,25 +569,29 @@ input:focus, select:focus, textarea:focus {
 
 /* Notifikace - responzivní pozicování */
 #notifications {
-    position: fixed !important;
-    top: 80px !important;  /* Pod hlavičkou */
-    right: 20px !important;
+    position: fixed;
+    top: 80px;  /* ZMĚNIT NA 20px */
+    right: 420px !important;
     z-index: 10000 !important;
     max-width: 400px !important;
+    width: auto !important;  /* PŘIDAT */
+    min-width: 300px !important;  /* PŘIDAT */
 }
 
 /* Pro mobilní zařízení */
 @media (max-width: 768px) {
     #notifications {
-        top: auto !important;
-        bottom: 20px !important;  /* Na mobilu dole */
-        right: 10px !important;
-        left: 10px !important;
-        max-width: none !important;
+        top: 70px !important;  /* ZMĚNIT z auto */
+        bottom: auto !important;  /* ZMĚNIT z 20px */
+        right: 410px !important;
+        left: auto !important;  /* ZMĚNIT z 10px */
+        max-width: calc(100vw - 20px) !important;  /* ZMĚNIT */
+        width: auto !important;  /* PŘIDAT */
     }
     
     .notification {
         margin: 0 0 10px 0 !important;
+        word-wrap: break-word !important;  /* PŘIDAT */
     }
 }
 
@@ -595,4 +599,6 @@ input:focus, select:focus, textarea:focus {
 .notification {
     position: relative;
     z-index: 10001;
+    max-width: 100% !important;  /* PŘIDAT */
+    box-sizing: border-box !important;  /* PŘIDAT */
 }

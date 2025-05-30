@@ -105,63 +105,67 @@ class ProductionAPI {
     }
 }
     
-    // OPRAVIT UPDATEORDER METODU - NAHRADIT EXISTUJÍCÍ
-    private function updateOrder() {
-        $input = json_decode(file_get_contents('php://input'), true);
-        $orderId = $input['id'];
-        
-        // Získat původní hodnoty
-        $stmt = $this->pdo->prepare("SELECT * FROM orders WHERE id = ?");
-        $stmt->execute([$orderId]);
-        $oldValues = $stmt->fetch();
-        
-        // Kontrola oprávnění pro stav náhledu
-        if (isset($input['preview_status']) && !hasPermission('edit_preview_status') && $_SESSION['role'] !== 'admin') {
-            unset($input['preview_status']);
+    // NAHRADIT metodu updateOrder:
+private function updateOrder($orderId) {
+    if (!hasPermission('edit_orders')) {
+        http_response_code(403);
+        return ['error' => 'Insufficient permissions'];
+    }
+    
+    $input = json_decode(file_get_contents('php://input'), true);
+    
+    // Načíst starý záznam pro log
+    $stmt = $this->pdo->prepare('SELECT * FROM orders WHERE id = ?');
+    $stmt->execute([$orderId]);
+    $oldValues = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$oldValues) {
+        return ['success' => false, 'message' => 'Objednávka nebyla nalezena'];
+    }
+    
+    // Sestavit SQL dynamicky na základě poskytnutých dat
+    $updateFields = [];
+    $data = ['id' => $orderId];
+    
+    $allowedFields = [
+        'order_code', 'catalog', 'quantity', 'order_date', 'goods_ordered_date', 
+        'goods_stocked_date', 'shipping_date', 'preview_status', 'preview_approved_date',
+        'production_status', 'notes', 'salesperson', 'technology_id'
+    ];
+    
+    foreach ($allowedFields as $field) {
+        if (array_key_exists($field, $input)) {
+            $updateFields[] = "$field = :$field";
+            $data[$field] = $input[$field];
         }
-        
-        // ROZŠÍŘIT SQL O VŠECHNA POLE
-        $sql = "UPDATE orders SET 
-                order_code = :order_code,
-                catalog = :catalog,
-                quantity = :quantity,
-                order_date = :order_date,
-                goods_ordered_date = :goods_ordered_date,
-                goods_stocked_date = :goods_stocked_date,
-                preview_status = :preview_status,
-                preview_approved_date = :preview_approved_date,
-                shipping_date = :shipping_date,
-                production_status = :production_status,
-                notes = :notes,
-                salesperson = :salesperson
-                WHERE id = :id";
-        
-        // Připravit data s výchozími hodnotami
-        $data = [
-            'id' => $orderId,
-            'order_code' => $input['order_code'] ?? $oldValues['order_code'],
-            'catalog' => $input['catalog'] ?? $oldValues['catalog'],
-            'quantity' => $input['quantity'] ?? $oldValues['quantity'],
-            'order_date' => $input['order_date'] ?? $oldValues['order_date'],
-            'goods_ordered_date' => $input['goods_ordered_date'] ?? $oldValues['goods_ordered_date'],
-            'goods_stocked_date' => $input['goods_stocked_date'] ?? $oldValues['goods_stocked_date'],
-            'preview_status' => $input['preview_status'] ?? $oldValues['preview_status'],
-            'preview_approved_date' => $input['preview_approved_date'] ?? $oldValues['preview_approved_date'],
-            'shipping_date' => $input['shipping_date'] ?? $oldValues['shipping_date'],
-            'production_status' => $input['production_status'] ?? $oldValues['production_status'],
-            'notes' => $input['notes'] ?? $oldValues['notes'],
-            'salesperson' => $input['salesperson'] ?? $oldValues['salesperson']
-        ];
-        
+    }
+    
+    if (empty($updateFields)) {
+        return ['success' => false, 'message' => 'Žádná data k aktualizaci'];
+    }
+    
+    $sql = "UPDATE orders SET " . implode(', ', $updateFields) . " WHERE id = :id";
+    
+    try {
         $stmt = $this->pdo->prepare($sql);
         $result = $stmt->execute($data);
         
         if ($result) {
-            logUserAction($this->pdo, 'orders', $orderId, 'UPDATE', $oldValues, $data, 'Aktualizována objednávka');
+            // Připravit data pro log
+            $newValues = array_merge($oldValues, $data);
+            unset($newValues['id']); // ID se nemění
+            
+            logUserAction($this->pdo, 'orders', $orderId, 'UPDATE', $oldValues, $newValues, 'Aktualizována objednávka');
+            
+            return ['success' => true, 'message' => 'Objednávka byla aktualizována'];
+        } else {
+            return ['success' => false, 'message' => 'Chyba při aktualizaci objednávky'];
         }
-        
-        return ['success' => $result];
+    } catch (PDOException $e) {
+        error_log('Database error: ' . $e->getMessage());
+        return ['success' => false, 'message' => 'Chyba databáze při aktualizaci'];
     }
+}
     
     // Zbytek kódu zůstává stejný...
     private function handleOrders($method) {

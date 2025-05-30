@@ -59,11 +59,11 @@ function getRoleDisplayName($role) {
 function getRolePermissions($role) {
     $permissions = [
         'admin' => [
-            'view_orders', 'edit_orders', 'delete_orders',
-            'view_schedule', 'edit_schedule',
-            'view_users', 'edit_users',
-            'view_history', 'manage_system'
-        ],
+    'view_orders', 'edit_orders', 'delete_orders',
+    'view_schedule', 'edit_schedule',
+    'view_users', 'edit_users',
+    'view_history', 'manage_system', 'edit_preview_status'
+],
         'obchodnik' => [
             'view_orders', 'edit_orders',
             'view_schedule',

@@ -378,6 +378,84 @@ function generateCalendarGrid() {
     calendarGrid.innerHTML = gridHTML;
 }
 */
+// PŘIDAT TUTO FUNKCI (kolem řádku 323):
+async function addToSchedule(orderId) {
+    if (!userPermissions.canEditSchedule) {
+        showNotification('Nemáte oprávnění upravovat plán', 'error');
+        return;
+    }
+    
+    try {
+        const order = currentOrders.find(o => o.id === orderId);
+        if (!order) {
+            showNotification('Objednávka nebyla nalezena', 'error');
+            return;
+        }
+        
+        // Kontrola, zda je náhled schválen
+        if (order.preview_status !== 'Schváleno') {
+            showNotification('Nelze přidat do plánu - náhled není schválen', 'error');
+            return;
+        }
+        
+        // Najít nejbližší dostupný datum
+        const today = new Date();
+        const plannedDate = order.preview_approved_date ? 
+            new Date(order.preview_approved_date) : today;
+        
+        if (plannedDate < today) {
+            plannedDate.setTime(today.getTime());
+        }
+        
+        const scheduleData = {
+            order_id: orderId,
+            planned_date: plannedDate.toISOString().split('T')[0],
+            estimated_duration: calculateEstimatedDuration(order),
+            notes: `Přidáno do plánu automaticky - ${new Date().toLocaleString('cs-CZ')}`
+        };
+        
+        const response = await fetch(`${API_URL}/schedule`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(scheduleData)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showNotification(`Objednávka ${order.order_code} byla přidána do plánu`, 'success');
+            // Obnovit zobrazení
+            await loadOrders();
+            await loadScheduleData();
+        } else {
+            throw new Error(result.message || 'Neznámá chyba');
+        }
+        
+    } catch (error) {
+        console.error('Chyba při přidávání do plánu:', error);
+        showNotification('Chyba při přidávání objednávky do plánu', 'error');
+    }
+}
+
+function calculateEstimatedDuration(order) {
+    // Odhad času na základě technologie a množství
+    const baseTimes = {
+        'Sítotisk': 0.5,
+        'Potisk': 0.3,
+        'Gravírování': 0.8,
+        'Výšivka': 1.0,
+        'Laser': 0.2
+    };
+    
+    const baseTime = baseTimes[order.technology] || 0.5;
+    return Math.ceil(order.quantity * baseTime / 100); // dny
+}
 
 async function loadScheduleData() {
     try {
@@ -837,6 +915,7 @@ function getTableText(tableName) {
     return tables[tableName] || tableName;
 }
 
+// NAHRADIT funkci showNotification:
 function showNotification(message, type = 'info') {
     // Najít nebo vytvořit kontejner pro notifikace
     let container = document.getElementById('notifications');
@@ -845,10 +924,12 @@ function showNotification(message, type = 'info') {
         container.id = 'notifications';
         container.style.cssText = `
             position: fixed;
-            top: 80px;  /* ZMĚNIT z 20px na 80px kvůli headeru */
+            top: 20px;
             right: 20px;
             z-index: 10000;
             max-width: 400px;
+            width: auto;
+            min-width: 300px;
         `;
         document.body.appendChild(container);
     }
@@ -864,20 +945,55 @@ function showNotification(message, type = 'info') {
         margin-bottom: 0.5rem;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         animation: slideIn 0.3s ease;
+        word-wrap: break-word;
+        max-width: 100%;
+        box-sizing: border-box;
+        position: relative;
     `;
-    notification.textContent = message;
     
+    // Přidat křížek pro zavření
+    const closeBtn = document.createElement('span');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.style.cssText = `
+        position: absolute;
+        top: 0.5rem;
+        right: 0.75rem;
+        font-size: 1.2rem;
+        cursor: pointer;
+        opacity: 0.7;
+        line-height: 1;
+    `;
+    closeBtn.onclick = function() {
+        if (notification.parentNode) {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }
+    };
+    
+    // Přidat obsah
+    const content = document.createElement('div');
+    content.style.paddingRight = '1.5rem'; // místo pro křížek
+    content.textContent = message;
+    
+    notification.appendChild(closeBtn);
+    notification.appendChild(content);
     container.appendChild(notification);
     
-    // Automatické skrytí po 5 sekundách
+    // Automatické skrytí po 15 sekundách (změněno z 5)
     setTimeout(() => {
-        notification.style.animation = 'slideOut 0.3s ease';
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.parentNode.removeChild(notification);
-            }
-        }, 300);
-    }, 5000);
+        if (notification.parentNode) {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }
+    }, 15000); // ZMĚNĚNO na 15 sekund
 }
 
 // PŘIDAT CSS animace pro notifikace

@@ -304,31 +304,63 @@ function showOrderDetails(order) {
     `;
 }
 
-function updateOrderStatus(orderId, action) {
+// NAHRADIT TUTO FUNKCI:
+async function updateOrderStatus(orderId, action) {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
     
-    switch (action) {
-        case 'approve':
-            order.preview_status = 'Schváleno';
-            order.preview_approved_date = new Date().toISOString().split('T')[0];
-            break;
-        case 'reject':
-            order.preview_status = 'Zamítnuto';
-            delete order.preview_approved_date;
-            break;
-        case 'revert':
-            order.preview_status = 'Čeká';
-            delete order.preview_approved_date;
-            break;
+    try {
+        let updateData = { id: orderId };
+        
+        switch (action) {
+            case 'approve':
+                updateData.preview_status = 'Schváleno';
+                updateData.preview_approved_date = new Date().toISOString().split('T')[0];
+                break;
+            case 'reject':
+                updateData.preview_status = 'Zamítnuto';
+                updateData.preview_approved_date = null;
+                break;
+            case 'revert':
+                updateData.preview_status = 'Čeká';
+                updateData.preview_approved_date = null;
+                break;
+        }
+        
+        // Odeslat na server
+        const response = await fetch(`${API_URL}/orders`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updateData)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Aktualizovat lokální data
+            Object.assign(order, updateData);
+            
+            // Obnovit zobrazení
+            renderPendingOrdersCalendar();
+            if (selectedOrderId === orderId) {
+                showOrderDetails(order);
+            }
+            
+            showNotification(`Náhled pro ${order.order_code} ${updateData.preview_status.toLowerCase()}`, 'success');
+        } else {
+            throw new Error(result.message || 'Aktualizace se nezdařila');
+        }
+        
+    } catch (error) {
+        console.error('Chyba při aktualizaci statusu:', error);
+        showNotification('Chyba při změně statusu náhledu', 'error');
     }
-    
-    renderPendingOrdersCalendar();
-    if (selectedOrderId === orderId) {
-        showOrderDetails(order);
-    }
-    
-    showNotification(`Náhled pro ${order.order_code} ${order.preview_status.toLowerCase()}`, 'success');
 }
 
 function updateShippingDate(orderId, date) {

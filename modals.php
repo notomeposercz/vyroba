@@ -77,7 +77,7 @@
             <div class="form-row">
                 <div class="form-group">
                     <label>Stav náhledu:</label>
-                    <select id="previewStatus" <?php echo hasPermission('edit_preview_status') ? '' : 'disabled'; ?>>
+                    <select id="previewStatus" <?php echo (hasPermission('edit_preview_status') || hasPermission('edit_orders')) ? '' : 'disabled'; ?>>
                         <option value="Čeká">Čeká</option>
                         <option value="Schváleno">Schváleno</option>
                         <option value="Zamítnuto">Zamítnuto</option>

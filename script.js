@@ -22,8 +22,8 @@ function initializeApp() {
     // Načtení objednávek
     loadOrders();
     
-    // Načtení kalendáře
-    loadCalendar();
+    // Načtení kalendáře - ZAKOMENTOVÁNO, používá se calendar.js
+    // loadCalendar();
     
     // Nastavení event listenerů
     setupEventListeners();
@@ -71,7 +71,8 @@ function setupEventListeners() {
         statusFilter.addEventListener('change', filterOrders);
     }
     
-    // Technologie filtry
+    // Technologie filtry - PŘESUNUTO DO calendar.js
+    /*
     const techFilters = document.querySelectorAll('.filter-btn');
     techFilters.forEach(btn => {
         btn.addEventListener('click', function() {
@@ -84,6 +85,7 @@ function setupEventListeners() {
             filterCalendarByTechnology(filter);
         });
     });
+    */
 }
 
 // Načtení technologií
@@ -131,9 +133,12 @@ async function loadOrders() {
         updateOrderSelects();
         
         // Aktualizovat také kalendář pokud je na stránce
+        // ZAKOMENTOVÁNO - calendar.js se stará o svůj vlastní refresh
+        /*
         if (typeof generateCalendarGrid === 'function') {
             generateCalendarGrid();
         }
+        */
         
         return currentOrders; // Vrátit pro použití v jiných funkcích
     } catch (error) {
@@ -317,11 +322,12 @@ function showOrderDetails(orderId) {
     `;
 }
 
-// Kalendář
+// Kalendář - ZAKOMENTOVÁNO, používá se calendar.js
+/*
 function loadCalendar() {
     generateCalendarGrid();
     loadScheduleData();
-    loadAndDisplayBlocks(); // PŘIDAT TOTO
+    loadAndDisplayBlocks();
 }
 
 function generateCalendarGrid() {
@@ -371,6 +377,7 @@ function generateCalendarGrid() {
     
     calendarGrid.innerHTML = gridHTML;
 }
+*/
 
 async function loadScheduleData() {
     try {
@@ -384,7 +391,8 @@ async function loadScheduleData() {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         
         currentSchedule = await response.json();
-        displayScheduleOnCalendar(currentSchedule);
+        // ZAKOMENTOVÁNO - calendar.js má vlastní zobrazování
+        // displayScheduleOnCalendar(currentSchedule);
     } catch (error) {
         console.error('Chyba při načítání plánu:', error);
         showNotification('Chyba při načítání výrobního plánu', 'error');
@@ -442,6 +450,8 @@ function getBlockLabel(type) {
     return labels[type] || type.toUpperCase();
 }
 
+// ZAKOMENTOVÁNO - calendar.js má vlastní zobrazování
+/*
 function displayScheduleOnCalendar(schedule) {
     // Vyčistit kalendář
     document.querySelectorAll('.calendar-cell').forEach(cell => {
@@ -478,19 +488,12 @@ function displayScheduleOnCalendar(schedule) {
         }
     });
 }
+*/
 
-// Navigace týdne
+// Navigace týdne - UPRAVENO pro použití s calendar.js
 function navigateWeek(direction) {
-    currentWeekStart.setDate(currentWeekStart.getDate() + (direction * 7));
-    updateWeekDisplay();
-    
-    // Použít funkci ze script.js
-    if (typeof generateCalendarGrid === 'function') {
-        generateCalendarGrid();
-    }
-    
-    // Načíst blokace
-    loadBlocks();
+    // Tato funkce je nyní volána z calendar.js
+    console.log('navigateWeek called from script.js - should be handled by calendar.js');
 }
 
 // Dokončené objednávky
@@ -707,7 +710,9 @@ async function addBlock(event) {
             document.getElementById('blockForm').reset();
             
             // Obnovit kalendář
-            loadCalendar();
+            if (productionCalendar) {
+                productionCalendar.loadBlocks().then(() => productionCalendar.renderCalendar());
+            }
         } else {
             showNotification('Chyba při ukládání: ' + (result.error || 'Neznámá chyba'), 'error');
         }
@@ -717,7 +722,8 @@ async function addBlock(event) {
     }
 }
 
-// Filtrace kalendáře podle technologie
+// Filtrace kalendáře podle technologie - PŘESUNUTO DO calendar.js
+/*
 function filterCalendarByTechnology(technology) {
     const rows = document.querySelectorAll('.calendar-row');
     
@@ -730,6 +736,7 @@ function filterCalendarByTechnology(technology) {
         }
     });
 }
+*/
 
 // Historie
 function loadHistory() {
@@ -838,7 +845,7 @@ function showNotification(message, type = 'info') {
         container.id = 'notifications';
         container.style.cssText = `
             position: fixed;
-            top: 20px;
+            top: 80px;  /* ZMĚNIT z 20px na 80px kvůli headeru */
             right: 20px;
             z-index: 10000;
             max-width: 400px;

@@ -566,3 +566,33 @@ input:focus, select:focus, textarea:focus {
     position: relative;
     z-index: 5;
 }
+
+/* Notifikace - responzivní pozicování */
+#notifications {
+    position: fixed !important;
+    top: 80px !important;  /* Pod hlavičkou */
+    right: 20px !important;
+    z-index: 10000 !important;
+    max-width: 400px !important;
+}
+
+/* Pro mobilní zařízení */
+@media (max-width: 768px) {
+    #notifications {
+        top: auto !important;
+        bottom: 20px !important;  /* Na mobilu dole */
+        right: 10px !important;
+        left: 10px !important;
+        max-width: none !important;
+    }
+    
+    .notification {
+        margin: 0 0 10px 0 !important;
+    }
+}
+
+/* Zajistit viditelnost notifikací */
+.notification {
+    position: relative;
+    z-index: 10001;
+}

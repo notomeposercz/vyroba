@@ -394,6 +394,30 @@ date_default_timezone_set('Europe/Prague');
             }
         }
     </script>
+    <script>
+// Event listener pro filtry technologií v kalendáři
+document.addEventListener('DOMContentLoaded', function() {
+    // Technology filter buttons
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('filter-btn')) {
+            // Remove active class from all
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Add active to clicked
+            e.target.classList.add('active');
+            
+            // Filter calendar
+            const filterValue = e.target.getAttribute('data-filter');
+            if (productionCalendar) {
+                productionCalendar.filterByTechnology(filterValue);
+            }
+        }
+    });
+});
+</script>
     <script src="script.js"></script>
+    <script src="calendar.js"></script>
 </body>
 </html>

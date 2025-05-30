@@ -316,7 +316,6 @@ private function updateOrder($orderId) {
     
     private function createScheduleEntry() {
         $input = json_decode(file_get_contents('php://input'), true);
-        // Validace vstupů
         if (!isset($input['order_id']) || !isset($input['planned_date'])) {
             http_response_code(400);
             return ['success' => false, 'error' => 'Chybí order_id nebo planned_date'];
@@ -326,7 +325,6 @@ private function updateOrder($orderId) {
         $duration = isset($input['estimated_duration']) ? (int)$input['estimated_duration'] : 1;
         $notes = $input['notes'] ?? null;
         try {
-            // Získat technologii objednávky
             $stmt = $this->pdo->prepare('SELECT technology FROM orders WHERE id = :order_id');
             $stmt->execute(['order_id' => $orderId]);
             $order = $stmt->fetch();
@@ -334,7 +332,6 @@ private function updateOrder($orderId) {
                 http_response_code(400);
                 return ['success' => false, 'error' => 'Objednávka nebo technologie nenalezena'];
             }
-            // Získat ID technologie
             $stmt = $this->pdo->prepare('SELECT id FROM technologies WHERE name = :name');
             $stmt->execute(['name' => $order['technology']]);
             $tech = $stmt->fetch();
@@ -343,10 +340,8 @@ private function updateOrder($orderId) {
                 return ['success' => false, 'error' => 'Technologie nenalezena'];
             }
             $technologyId = $tech['id'];
-            // Výpočet koncového data
             $startDate = $plannedDate;
             $endDate = date('Y-m-d', strtotime("$plannedDate +" . max(1, $duration-1) . " days"));
-            // Vložit do production_schedule
             $sql = "INSERT INTO production_schedule (order_id, start_date, end_date, technology_id, is_locked) VALUES (:order_id, :start_date, :end_date, :technology_id, 0)";
             $stmt = $this->pdo->prepare($sql);
             $result = $stmt->execute([
@@ -359,13 +354,14 @@ private function updateOrder($orderId) {
                 return ['success' => true];
             } else {
                 http_response_code(500);
-                error_log('Chyba při ukládání do plánu: ' . print_r($stmt->errorInfo(), true));
-                return ['success' => false, 'error' => 'Chyba při ukládání do plánu'];
+                return ['success' => false, 'error' => 'Chyba při ukládání do plánu: ' . print_r($stmt->errorInfo(), true)];
             }
         } catch (PDOException $e) {
             http_response_code(500);
-            error_log('Chyba v createScheduleEntry: ' . $e->getMessage());
-            return ['success' => false, 'error' => 'Databázová chyba: ' . $e->getMessage()];
+            return ['success' => false, 'error' => 'Databázová výjimka: ' . $e->getMessage()];
+        } catch (Throwable $e) {
+            http_response_code(500);
+            return ['success' => false, 'error' => 'Obecná výjimka: ' . $e->getMessage()];
         }
     }
     

@@ -625,7 +625,24 @@ async function saveOrder(event) {
             });
         }
         
-        const result = await response.json();
+        // Kontrola, zda odpověď obsahuje JSON
+        let result;
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+            try {
+                result = await response.json();
+            } catch (jsonError) {
+                console.error('Chyba při parsování JSON:', jsonError);
+                const responseText = await response.text();
+                console.error('Response text:', responseText);
+                throw new Error('Server vrátil neplatný JSON');
+            }
+        } else {
+            const responseText = await response.text();
+            console.error('Server nevrátil JSON, response:', responseText);
+            throw new Error('Server vrátil neočekávaný formát odpovědi');
+        }
         
         if (response.ok && result.success) {
             showNotification(orderId ? 'Objednávka upravena' : 'Objednávka vytvořena', 'success');

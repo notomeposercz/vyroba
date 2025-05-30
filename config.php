@@ -1,23 +1,35 @@
 <?php
-// Konfigurace databáze
-define('DB_HOST', 'db.dw189.webglobe.com');
-define('DB_NAME', 'vyroba_myrec_cz');
-define('DB_USER', 'vyroba_myrec_cz');
-define('DB_PASS', 'bPgQY78S');
-define('API_URL', '/api.php');
+// Nastavení kódování pro PHP
+mb_internal_encoding('UTF-8');
+ini_set('default_charset', 'UTF-8');
+
+// Databázové připojení
+$host = 'db.dw189.webglobe.com';
+$dbname = 'vyroba_myrec_cz';
+$username = 'vyroba_myrec_cz';
+$password = 'bPgQY78S'; // Nahraďte skutečným heslem
 
 try {
     $pdo = new PDO(
-        "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
-        DB_USER,
-        DB_PASS,
+        "mysql:host=$host;dbname=$dbname;charset=utf8mb4", 
+        $username, 
+        $password,
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4 COLLATE utf8mb4_general_ci",
             PDO::ATTR_EMULATE_PREPARES => false
         ]
     );
-} catch (PDOException $e) {
+    
+    // Explicitně nastavit kódování
+    $pdo->exec("SET NAMES utf8mb4");
+    $pdo->exec("SET CHARACTER SET utf8mb4");
+    
+} catch(PDOException $e) {
     die("Chyba připojení k databázi: " . $e->getMessage());
 }
+
+// Nastavení časového pásma
+date_default_timezone_set('Europe/Prague');
 ?>

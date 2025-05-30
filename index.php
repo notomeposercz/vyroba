@@ -17,7 +17,7 @@ date_default_timezone_set('Europe/Prague');
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="style_auth.css">
     <link rel="stylesheet" href="style_calendar.css">
-	    <style>
+    <style>
 /* Kalendářní objednávky */
 .calendar-order {
     background: #e5e7eb;
@@ -92,6 +92,53 @@ date_default_timezone_set('Europe/Prague');
     margin: 1rem;
     border: 1px solid #fecaca;
 }
+
+/* Import tlačítko styly */
+.import-csv-btn {
+    background: #8b5cf6;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-right: 0.5rem;
+    transition: background-color 0.2s;
+    font-size: 0.9rem;
+}
+
+.import-csv-btn:hover {
+    background: #7c3aed;
+}
+
+.import-csv-btn:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+}
+
+.import-status {
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+}
+
+.import-status.success {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.import-status.error {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+}
+
+.import-status.loading {
+    background: #eff6ff;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
 </style>
 </head>
 <body class="calendar-layout role-<?php echo $_SESSION['role']; ?>">
@@ -115,6 +162,13 @@ date_default_timezone_set('Europe/Prague');
                     <?php echo date('d.m.Y H:i'); ?>
                 </span>
                 
+                <!-- CSV Import Button - pouze pro admin a obchodníky -->
+                <?php if (hasAnyRole(['admin', 'obchodnik'])): ?>
+                <button class="import-csv-btn" onclick="importCSV()" id="importBtn">
+                    <i class="fas fa-file-csv"></i> Import CSV
+                </button>
+                <?php endif; ?>
+                
                 <?php if (hasPermission('view_history')): ?>
                 <button class="history-btn" onclick="showHistoryModal()">
                     <i class="fas fa-history"></i> Historie
@@ -127,6 +181,9 @@ date_default_timezone_set('Europe/Prague');
             </div>
         </div>
     </header>
+
+    <!-- CSV Import Status -->
+    <div id="importStatus" class="import-status" style="display: none;"></div>
 
     <!-- Main Content -->
     <main class="main-content">
@@ -256,6 +313,71 @@ date_default_timezone_set('Europe/Prague');
         };
         
         const userRole = '<?php echo $_SESSION['role']; ?>';
+        
+        // CSV Import funkce
+        async function importCSV() {
+            const importBtn = document.getElementById('importBtn');
+            const statusDiv = document.getElementById('importStatus');
+            
+            // Zobrazit načítání
+            importBtn.disabled = true;
+            importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importuji...';
+            
+            statusDiv.className = 'import-status loading';
+            statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Zpracovávám CSV soubor...';
+            statusDiv.style.display = 'block';
+            
+            try {
+                const response = await fetch('import_csv.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    statusDiv.className = 'import-status success';
+                    statusDiv.innerHTML = `
+                        <i class="fas fa-check-circle"></i> 
+                        Import úspěšný! Zpracováno ${result.processed_count} objednávek.
+                        <br>Použitý soubor: ${result.csv_file_used}
+                    `;
+                    
+                    // Obnovit data na stránce
+                    if (typeof loadOrders === 'function') {
+                        loadOrders();
+                    }
+                    if (typeof loadCalendar === 'function') {
+                        loadCalendar();
+                    }
+                    
+                } else {
+                    statusDiv.className = 'import-status error';
+                    statusDiv.innerHTML = `
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        Chyba při importu: ${result.error}
+                    `;
+                }
+                
+            } catch (error) {
+                statusDiv.className = 'import-status error';
+                statusDiv.innerHTML = `
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    Síťová chyba: ${error.message}
+                `;
+            } finally {
+                // Obnovit tlačítko
+                importBtn.disabled = false;
+                importBtn.innerHTML = '<i class="fas fa-file-csv"></i> Import CSV';
+                
+                // Skrýt status za 10 sekund
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 10000);
+            }
+        }
         
         function logout() {
             document.getElementById('logoutModal').style.display = 'block';

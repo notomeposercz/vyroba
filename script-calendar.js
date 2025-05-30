@@ -1,5 +1,8 @@
 // Calendar-specific functionality
 
+// API URL
+const API_URL = '/api.php';
+
 // Global variables for calendar
 let vyrobaManager = null;
 let currentWeekStart = new Date();
@@ -562,12 +565,13 @@ window.markOrderCompleted = async function(orderId) {
     if (!confirm('Označit objednávku jako hotovou?')) return;
     
     try {
-        const response = await fetch('api.php/orders', {
+        const response = await fetch('/api.php/orders', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 id: orderId,
-                production_status: 'Hotovo'
+                production_status: 'Hotovo',
+                completion_date: new Date().toISOString().split('T')[0]
             })
         });
         
@@ -705,7 +709,7 @@ async function addBlock(event) {
     }
     
     try {
-        const response = await fetch('api.php/blocks', {
+        const response = await fetch('/api.php/blocks', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(blockData)
@@ -734,7 +738,7 @@ async function loadBlocks() {
         const endDate = new Date(currentWeekStart);
         endDate.setDate(endDate.getDate() + 7);
         
-        const response = await fetch(`api.php/blocks?start=${startDate.toISOString().split('T')[0]}&end=${endDate.toISOString().split('T')[0]}`);
+        const response = await fetch(`/api.php/blocks?start=${startDate.toISOString().split('T')[0]}&end=${endDate.toISOString().split('T')[0]}`);
         const blocks = await response.json();
         
         // Aplikovat blokace do kalendáře

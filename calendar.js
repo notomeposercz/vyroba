@@ -45,11 +45,11 @@ class ProductionCalendar {
     async loadData() {
         try {
             // Načíst objednávky
-            const ordersResponse = await fetch('api.php/orders');
+            const ordersResponse = await fetch('/api.php/orders');
             this.orders = await ordersResponse.json();
             
             // Načíst technologie
-            const techResponse = await fetch('api.php/technologies');
+            const techResponse = await fetch('/api.php/technologies');
             this.technologies = await techResponse.json();
             
             // Načíst blokace pro aktuální týden
@@ -70,7 +70,7 @@ class ProductionCalendar {
         const endDate = weekEnd.toISOString().split('T')[0];
         
         try {
-            const response = await fetch(`api.php/blocks?start=${startDate}&end=${endDate}`);
+            const response = await fetch(`/api.php/blocks?start=${startDate}&end=${endDate}`);
             this.blocks = await response.json();
         } catch (error) {
             console.error('Chyba při načítání blokací:', error);
@@ -274,13 +274,13 @@ async function markOrderCompleted(orderId) {
     if (!confirm('Označit objednávku jako hotovou?')) return;
     
     try {
-        const response = await fetch('api.php/orders', {
+        const response = await fetch('/api.php/orders', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 id: orderId,
                 production_status: 'Hotovo',
-                completion_date: new Date().toISOString()
+                completion_date: new Date().toISOString().split('T')[0]
             })
         });
         

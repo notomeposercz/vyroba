@@ -11,7 +11,7 @@ function loadHistory() {
     const tableFilter = document.getElementById('historyTableFilter').value;
     const dateFilter = document.getElementById('historyDateFilter').value;
     
-    let url = 'api.php/history?';
+    let url = '/api.php/history?';
     const params = new URLSearchParams();
     
     if (tableFilter) {

@@ -5,7 +5,7 @@ let technologies = [];
 let currentWeekStart = new Date();
 
 // API URL
-const API_URL = 'api.php';
+const API_URL = '/api.php';
 
 // Inicializace aplikace
 document.addEventListener('DOMContentLoaded', function() {

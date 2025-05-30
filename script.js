@@ -311,11 +311,21 @@ function showOrderDetails(orderId) {
                 </div>
             ` : ''}
             
-            ${userPermissions.canEditSchedule ? `
-                <div class="detail-actions">
-                    <button class="btn btn-primary" onclick="addToSchedule(${order.id})">
-                        <i class="fas fa-calendar-plus"></i> Přidat do plánu
-                    </button>
+            ${order.preview_status === 'Schváleno' ? `
+                <div class="detail-info">
+                    <div style="background: #dcfce7; border: 1px solid #16a34a; border-radius: 6px; padding: 0.75rem; margin-top: 1rem;">
+                        <i class="fas fa-check-circle" style="color: #16a34a;"></i>
+                        <strong>Objednávka je v kalendáři</strong><br>
+                        <small style="color: #15803d;">Automaticky přidána do plánu po schválení náhledu</small>
+                    </div>
+                </div>
+            ` : order.preview_status === 'Čeká' ? `
+                <div class="detail-info">
+                    <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 0.75rem; margin-top: 1rem;">
+                        <i class="fas fa-clock" style="color: #f59e0b;"></i>
+                        <strong>Čeká na schválení náhledu</strong><br>
+                        <small style="color: #d97706;">Po schválení se automaticky přidá do kalendáře</small>
+                    </div>
                 </div>
             ` : ''}
         </div>
@@ -378,73 +388,9 @@ function generateCalendarGrid() {
     calendarGrid.innerHTML = gridHTML;
 }
 */
-// PŘIDAT TUTO FUNKCI (kolem řádku 323):
-async function addToSchedule(orderId) {
-    if (!userPermissions.canEditSchedule) {
-        showNotification('Nemáte oprávnění upravovat plán', 'error');
-        return;
-    }
-    try {
-        const order = currentOrders.find(o => o.id === orderId);
-        if (!order) {
-            showNotification('Objednávka nebyla nalezena', 'error');
-            return;
-        }
-        // Kontrola, zda je náhled schválen
-        if (order.preview_status !== 'Schváleno') {
-            showNotification('Nelze přidat do plánu - náhled není schválen', 'error');
-            return;
-        }
-        // Najít nejbližší dostupný datum
-        const today = new Date();
-        const plannedDate = order.preview_approved_date ? new Date(order.preview_approved_date) : today;
-        if (plannedDate < today) {
-            plannedDate.setTime(today.getTime());
-        }
-        const scheduleData = {
-            order_id: orderId,
-            planned_date: plannedDate.toISOString().split('T')[0],
-            estimated_duration: calculateEstimatedDuration(order),
-            notes: `Přidáno do plánu automaticky - ${new Date().toLocaleString('cs-CZ')}`
-        };
-        const response = await fetch(`${API_URL}/schedule`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(scheduleData)
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        const result = await response.json();
-        if (result.success) {
-            showNotification(`Objednávka ${order.order_code} byla přidána do plánu`, 'success');
-            // Obnovit zobrazení
-            await loadOrders();
-            await loadScheduleData();
-        } else {
-            throw new Error(result.message || 'Neznámá chyba');
-        }
-    } catch (error) {
-        console.error('Chyba při přidávání do plánu:', error);
-        showNotification('Chyba při přidávání objednávky do plánu', 'error');
-    }
-}
-
-function calculateEstimatedDuration(order) {
-    // Odhad času na základě technologie a množství
-    const baseTimes = {
-        'Sítotisk': 0.5,
-        'Potisk': 0.3,
-        'Gravírování': 0.8,
-        'Výšivka': 1.0,
-        'Laser': 0.2
-    };
-    
-    const baseTime = baseTimes[order.technology] || 0.5;
-    return Math.ceil(order.quantity * baseTime / 100); // dny
-}
+// Automatické vkládání do kalendáře je nyní řešeno v calendar.js
+// Objednávky se automaticky zobrazují v kalendáři po schválení náhledu
+// Není potřeba manuální "přidávání do plánu"
 
 async function loadScheduleData() {
     try {

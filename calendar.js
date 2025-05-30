@@ -244,9 +244,14 @@ class ProductionCalendar {
         orders.forEach(order => {
             const orderTech = order.getAttribute('data-technology');
             
-            if (tech === 'all' || !orderTech || orderTech === tech) {
+            if (tech === 'all') {
+                // Zobrazit všechny objednávky (včetně těch bez technologie)
+                order.style.display = '';
+            } else if (orderTech && orderTech === tech) {
+                // Zobrazit pouze objednávky s konkrétní technologií
                 order.style.display = '';
             } else {
+                // Skrýt všechny ostatní (včetně objednávek bez technologie při výběru konkrétní technologie)
                 order.style.display = 'none';
             }
         });

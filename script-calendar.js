@@ -607,10 +607,17 @@ function filterCalendarByTechnology(tech) {
     const calendarOrders = document.querySelectorAll('.calendar-order');
     calendarOrders.forEach(order => {
         const orderTech = order.dataset.technology;
-        if (tech === 'all' || !orderTech || orderTech === tech) {
+        
+        if (tech === 'all') {
+            // Zobrazit všechny objednávky (včetně těch bez technologie)
+            order.style.display = ''; // Zobrazit
+            order.classList.remove('hidden');
+        } else if (orderTech && orderTech === tech) {
+            // Zobrazit pouze objednávky s konkrétní technologií
             order.style.display = ''; // Zobrazit
             order.classList.remove('hidden');
         } else {
+            // Skrýt všechny ostatní (včetně objednávek bez technologie při výběru konkrétní technologie)
             order.style.display = 'none'; // Skrýt
             order.classList.add('hidden');
         }

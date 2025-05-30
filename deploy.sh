@@ -1,6 +1,12 @@
 #!/bin/zsh
-# Automatický commit a nasazení na FTP
+# Automatický commit a nasazení na FTP s proměnnými prostředí
 
 git add .
 git commit -m "Automatický commit: změny v projektu"
-sftp-deploy --config .vscode/sftp.json
+
+export DEPLOY_HOST=62.109.154.144
+export DEPLOY_USER=myrec.cz
+export DEPLOY_PASSWORD=58xoSDKh
+export DEPLOY_PATH=/_sub/vyroba/
+
+sftp-deploy

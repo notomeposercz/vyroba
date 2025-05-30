@@ -1,15 +1,16 @@
 #!/bin/zsh
-# Automatický commit a nasazení na FTP pomocí standardního sftp
+# Automatický commit, push a nasazení na FTP pomocí standardního sftp
 
 git add .
 git commit -m "Automatický commit: změny v projektu"
+git push
 
 # Vytvoření dočasného sftp batch souboru
 TMP_BATCH=$(mktemp /tmp/sftp_batch.XXXXXX)
 cat > $TMP_BATCH <<EOF
 lcd $(pwd)
 cd /_sub/vyroba/
-put -r *
+put -r .
 EOF
 
 # Spuštění sftp s heslem (nutno mít nainstalováno sshpass)

@@ -323,7 +323,7 @@ private function updateOrder($orderId) {
         $orderId = (int)$input['order_id'];
         $plannedDate = $input['planned_date'];
         $duration = isset($input['estimated_duration']) ? (int)$input['estimated_duration'] : 1;
-        $notes = $input['notes'] ?? null;
+        $notes = array_key_exists('notes', $input) ? $input['notes'] : '';
         try {
             $stmt = $this->pdo->prepare('SELECT technology FROM orders WHERE id = :order_id');
             $stmt->execute(['order_id' => $orderId]);
@@ -354,7 +354,18 @@ private function updateOrder($orderId) {
                 return ['success' => true];
             } else {
                 http_response_code(500);
-                return ['success' => false, 'error' => 'Chyba při ukládání do plánu: ' . print_r($stmt->errorInfo(), true)];
+                return [
+                    'success' => false,
+                    'error' => 'Chyba při ukládání do plánu',
+                    'errorInfo' => $stmt->errorInfo(),
+                    'input' => [
+                        'order_id' => $orderId,
+                        'start_date' => $startDate,
+                        'end_date' => $endDate,
+                        'technology_id' => $technologyId,
+                        'notes' => $notes
+                    ]
+                ];
             }
         } catch (PDOException $e) {
             http_response_code(500);

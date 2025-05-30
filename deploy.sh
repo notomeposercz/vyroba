@@ -1,12 +1,6 @@
 #!/bin/zsh
-# Automatický commit a nasazení na FTP s proměnnými prostředí
+# Automatický commit a nasazení na FTP s přímými parametry pro sftp-deploy
 
 git add .
 git commit -m "Automatický commit: změny v projektu"
-
-export DEPLOY_HOST=62.109.154.144
-export DEPLOY_USER=myrec.cz
-export DEPLOY_PASSWORD=58xoSDKh
-export DEPLOY_PATH=/_sub/vyroba/
-
-sftp-deploy
+sftp-deploy --host 62.109.154.144 --user myrec.cz --password 58xoSDKh --path /_sub/vyroba/

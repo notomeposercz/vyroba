@@ -325,40 +325,47 @@ private function updateOrder($orderId) {
         $plannedDate = $input['planned_date'];
         $duration = isset($input['estimated_duration']) ? (int)$input['estimated_duration'] : 1;
         $notes = $input['notes'] ?? null;
-        // Získat technologii objednávky
-        $stmt = $this->pdo->prepare('SELECT technology FROM orders WHERE id = :order_id');
-        $stmt->execute(['order_id' => $orderId]);
-        $order = $stmt->fetch();
-        if (!$order || !$order['technology']) {
-            http_response_code(400);
-            return ['success' => false, 'error' => 'Objednávka nebo technologie nenalezena'];
-        }
-        // Získat ID technologie
-        $stmt = $this->pdo->prepare('SELECT id FROM technologies WHERE name = :name');
-        $stmt->execute(['name' => $order['technology']]);
-        $tech = $stmt->fetch();
-        if (!$tech) {
-            http_response_code(400);
-            return ['success' => false, 'error' => 'Technologie nenalezena'];
-        }
-        $technologyId = $tech['id'];
-        // Výpočet koncového data
-        $startDate = $plannedDate;
-        $endDate = date('Y-m-d', strtotime("$plannedDate +" . max(1, $duration-1) . " days"));
-        // Vložit do production_schedule
-        $sql = "INSERT INTO production_schedule (order_id, start_date, end_date, technology_id, is_locked) VALUES (:order_id, :start_date, :end_date, :technology_id, 0)";
-        $stmt = $this->pdo->prepare($sql);
-        $result = $stmt->execute([
-            'order_id' => $orderId,
-            'start_date' => $startDate,
-            'end_date' => $endDate,
-            'technology_id' => $technologyId
-        ]);
-        if ($result) {
-            return ['success' => true];
-        } else {
+        try {
+            // Získat technologii objednávky
+            $stmt = $this->pdo->prepare('SELECT technology FROM orders WHERE id = :order_id');
+            $stmt->execute(['order_id' => $orderId]);
+            $order = $stmt->fetch();
+            if (!$order || !$order['technology']) {
+                http_response_code(400);
+                return ['success' => false, 'error' => 'Objednávka nebo technologie nenalezena'];
+            }
+            // Získat ID technologie
+            $stmt = $this->pdo->prepare('SELECT id FROM technologies WHERE name = :name');
+            $stmt->execute(['name' => $order['technology']]);
+            $tech = $stmt->fetch();
+            if (!$tech) {
+                http_response_code(400);
+                return ['success' => false, 'error' => 'Technologie nenalezena'];
+            }
+            $technologyId = $tech['id'];
+            // Výpočet koncového data
+            $startDate = $plannedDate;
+            $endDate = date('Y-m-d', strtotime("$plannedDate +" . max(1, $duration-1) . " days"));
+            // Vložit do production_schedule
+            $sql = "INSERT INTO production_schedule (order_id, start_date, end_date, technology_id, is_locked) VALUES (:order_id, :start_date, :end_date, :technology_id, 0)";
+            $stmt = $this->pdo->prepare($sql);
+            $result = $stmt->execute([
+                'order_id' => $orderId,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'technology_id' => $technologyId
+            ]);
+            if ($result) {
+                return ['success' => true];
+            } else {
+                http_response_code(500);
+                error_log('Chyba při ukládání do plánu: ' . print_r($stmt->errorInfo(), true));
+                return ['success' => false, 'error' => 'Chyba při ukládání do plánu'];
+            }
+        } catch (PDOException $e) {
             http_response_code(500);
-            return ['success' => false, 'error' => 'Chyba při ukládání do plánu'];
+            error_log('Chyba v createScheduleEntry: ' . $e->getMessage());
+            return ['success' => false, 'error' => 'Databázová chyba: ' . $e->getMessage()];
         }
     }
     

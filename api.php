@@ -1,4 +1,9 @@
 <?php
+// Tracy debugger
+require_once __DIR__ . '/tracy.phar';
+use Tracy\Debugger;
+Debugger::enable(Debugger::DEVELOPMENT, __DIR__ . '/log');
+
 require_once 'config.php';
 require_once 'auth.php';
 

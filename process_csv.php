@@ -71,7 +71,7 @@ class CSVProcessor {
 // Použití - OPRAVENÝ NÁZEV SOUBORU
 try {
     $processor = new CSVProcessor($pdo);
-    $csvFile = 'Objednavka prijata CSV - IMAGE CZECH.csv';  // BEZ DIAKRITIKY
+    $csvFile = 'Objednavka prijata CSV - IMAGE CZECH.CSV';  // BEZ DIAKRITIKY
     $processedOrders = $processor->processCSVFile($csvFile);
     
     echo "Úspěšně zpracováno " . count($processedOrders) . " objednávek:\n";

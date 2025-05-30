@@ -69,7 +69,9 @@ try {
     $possibleNames = [
         'Objednavka prijata CSV - IMAGE CZECH.csv',
         'Objednávka přijatá CSV - IMAGE CZECH.csv',
-        'objednavka prijata csv - image czech.csv'
+        'objednavka prijata csv - image czech.csv',
+        'Objednavka prijata CSV - IMAGE CZECH.CSV',
+        'Objednávka přijatá CSV - IMAGE CZECH.CSV',
     ];
     
     $csvFile = null;

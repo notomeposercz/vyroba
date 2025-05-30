@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Počítač: db.dw189.webglobe.com
--- Vytvořeno: Čtv 29. kvě 2025, 14:02
+-- Vytvořeno: Pát 30. kvě 2025, 08:38
 -- Verze serveru: 8.0.41-32
 -- Verze PHP: 8.1.32
 
@@ -24,6 +24,22 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
+-- Struktura tabulky `calendar_blocks`
+--
+
+CREATE TABLE `calendar_blocks` (
+  `id` int NOT NULL,
+  `type` enum('dovolena','udrzba','svatek','jine') COLLATE utf8mb4_general_ci NOT NULL,
+  `start_date` date NOT NULL,
+  `end_date` date NOT NULL,
+  `note` text COLLATE utf8mb4_general_ci,
+  `created_by` int DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Struktura tabulky `change_history`
 --
 
@@ -38,6 +54,15 @@ CREATE TABLE `change_history` (
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Vypisuji data pro tabulku `change_history`
+--
+
+INSERT INTO `change_history` (`id`, `user_id`, `table_name`, `record_id`, `action`, `old_values`, `new_values`, `description`, `created_at`) VALUES
+(1, 8, 'orders', 5, 'UPDATE', '{\"id\": 5, \"notes\": null, \"catalog\": \"13030683-03\", \"quantity\": 1500, \"created_at\": \"2025-05-29 10:05:04\", \"order_code\": \"25VP-00004\", \"order_date\": \"2025-01-02\", \"updated_at\": \"2025-05-29 10:07:57\", \"salesperson\": null, \"shipping_date\": null, \"preview_status\": \"Čeká\", \"completion_date\": null, \"production_status\": \"Čekající\", \"goods_ordered_date\": \"2025-01-03\", \"goods_stocked_date\": \"2025-01-06\", \"preview_approved_date\": null}', '{\"id\": 5, \"notes\": \"\", \"catalog\": \"13030683-03\", \"quantity\": 1500, \"order_code\": \"25VP-00004\", \"order_date\": \"2025-01-02\", \"salesperson\": \"erwerew\", \"shipping_date\": null, \"preview_status\": \"Čeká\", \"production_status\": \"Čekající\", \"goods_ordered_date\": \"2025-01-03\", \"goods_stocked_date\": \"2025-01-06\", \"preview_approved_date\": null}', 'Aktualizována objednávka', '2025-05-29 12:40:51'),
+(2, 8, 'orders', 5, 'UPDATE', '{\"id\": 5, \"notes\": \"\", \"catalog\": \"13030683-03\", \"quantity\": 1500, \"created_at\": \"2025-05-29 10:05:04\", \"order_code\": \"25VP-00004\", \"order_date\": \"2025-01-02\", \"updated_at\": \"2025-05-29 14:40:51\", \"salesperson\": \"erwerew\", \"shipping_date\": null, \"preview_status\": \"Čeká\", \"completion_date\": null, \"production_status\": \"Čekající\", \"goods_ordered_date\": \"2025-01-03\", \"goods_stocked_date\": \"2025-01-06\", \"preview_approved_date\": null}', '{\"id\": 5, \"notes\": \"\", \"catalog\": \"13030683-03\", \"quantity\": 1500, \"order_code\": \"25VP-00004\", \"order_date\": \"2025-01-02\", \"salesperson\": \"Jirka\", \"shipping_date\": null, \"preview_status\": \"Čeká\", \"production_status\": \"Čekající\", \"goods_ordered_date\": \"2025-01-03\", \"goods_stocked_date\": \"2025-01-06\", \"preview_approved_date\": null}', 'Aktualizována objednávka', '2025-05-29 12:41:08'),
+(3, 8, 'orders', 1, 'UPDATE', '{\"id\": 1, \"notes\": null, \"catalog\": \"\", \"quantity\": 905, \"created_at\": \"2025-05-29 10:05:04\", \"order_code\": \"25VP-00002\", \"order_date\": \"2025-01-02\", \"updated_at\": \"2025-05-29 10:05:04\", \"salesperson\": null, \"shipping_date\": null, \"preview_status\": \"Čeká\", \"completion_date\": null, \"production_status\": \"Čekající\", \"goods_ordered_date\": null, \"goods_stocked_date\": null, \"preview_approved_date\": null}', '{\"id\": 1, \"notes\": \"\", \"catalog\": \"\", \"quantity\": 905, \"order_code\": \"25VP-00002\", \"order_date\": \"2025-01-02\", \"salesperson\": \"\", \"shipping_date\": null, \"preview_status\": \"Čeká\", \"production_status\": \"Čekající\", \"goods_ordered_date\": \"2025-05-29\", \"goods_stocked_date\": \"2025-05-30\", \"preview_approved_date\": null}', 'Aktualizována objednávka', '2025-05-29 12:42:20');
 
 -- --------------------------------------------------------
 
@@ -69,8 +94,11 @@ CREATE TABLE `orders` (
 --
 
 INSERT INTO `orders` (`id`, `order_code`, `catalog`, `quantity`, `order_date`, `goods_ordered_date`, `goods_stocked_date`, `preview_status`, `preview_approved_date`, `shipping_date`, `production_status`, `completion_date`, `notes`, `salesperson`, `created_at`, `updated_at`) VALUES
-(1, '25VP-00002', '', 905, '2025-01-02', NULL, NULL, 'Čeká', NULL, NULL, 'Čekající', NULL, NULL, NULL, '2025-05-29 08:05:04', '2025-05-29 08:05:04'),
-(5, '25VP-00004', '13030683-03', 1500, '2025-01-02', '2025-01-03', '2025-01-06', 'Čeká', NULL, NULL, 'Čekající', NULL, NULL, NULL, '2025-05-29 08:05:04', '2025-05-29 08:07:57');
+(1, '25VP-00002', '', 905, '2025-01-02', NULL, NULL, 'Čeká', NULL, NULL, 'Čekající', NULL, '', '', '2025-05-29 08:05:04', '2025-05-30 05:28:54'),
+(5, '25VP-00004', '13030683-03', 1500, '2025-01-02', '2025-01-03', '2025-01-06', 'Čeká', NULL, NULL, 'Čekající', NULL, '', 'Jirka', '2025-05-29 08:05:04', '2025-05-30 05:28:54'),
+(36, '25VP-00001', '', 1260, '2025-01-02', NULL, NULL, 'Čeká', NULL, NULL, 'Čekající', NULL, NULL, NULL, '2025-05-30 05:28:54', '2025-05-30 05:28:54'),
+(40, '25VP-00003', '', 2510, '2025-01-02', NULL, NULL, 'Čeká', NULL, NULL, 'Čekající', NULL, NULL, NULL, '2025-05-30 05:28:54', '2025-05-30 05:28:54'),
+(44, '25J-00002', '04010640-03', 20, '2025-01-03', '2025-01-08', '2025-01-10', 'Čeká', NULL, NULL, 'Čekající', NULL, NULL, NULL, '2025-05-30 05:28:54', '2025-05-30 05:28:54');
 
 -- --------------------------------------------------------
 
@@ -153,7 +181,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `full_name`, `role`, `is_active`, `last_login`, `created_at`, `updated_at`) VALUES
-(8, 'admin', 'admin@vyroba.cz', '$2y$10$xUhdnGyMWQZWehQ0RfZ/A.xeAk7A32rf0uTPmJA0BkSbK81/W0iyO', 'Správce Systému', 'admin', 1, '2025-05-29 11:44:07', '2025-05-29 09:41:58', '2025-05-29 11:44:07'),
+(8, 'admin', 'admin@vyroba.cz', '$2y$10$xUhdnGyMWQZWehQ0RfZ/A.xeAk7A32rf0uTPmJA0BkSbK81/W0iyO', 'Správce Systému', 'admin', 1, '2025-05-30 06:36:11', '2025-05-29 09:41:58', '2025-05-30 06:36:11'),
 (9, 'pavel.novak', 'pavel.novak@vyroba.cz', '$2y$10$xUhdnGyMWQZWehQ0RfZ/A.xeAk7A32rf0uTPmJA0BkSbK81/W0iyO', 'Pavel Novák', 'obchodnik', 1, NULL, '2025-05-29 09:41:58', '2025-05-29 09:41:58'),
 (10, 'marie.svoboda', 'marie.svoboda@vyroba.cz', '$2y$10$xUhdnGyMWQZWehQ0RfZ/A.xeAk7A32rf0uTPmJA0BkSbK81/W0iyO', 'Marie Svobodová', 'obchodnik', 1, NULL, '2025-05-29 09:41:58', '2025-05-29 09:41:58'),
 (11, 'jan.dvorak', 'jan.dvorak@vyroba.cz', '$2y$10$xUhdnGyMWQZWehQ0RfZ/A.xeAk7A32rf0uTPmJA0BkSbK81/W0iyO', 'Jan Dvořák', 'vyroba', 1, NULL, '2025-05-29 09:41:58', '2025-05-29 09:41:58'),
@@ -164,6 +192,13 @@ INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `full_name`, `r
 --
 -- Indexy pro exportované tabulky
 --
+
+--
+-- Indexy pro tabulku `calendar_blocks`
+--
+ALTER TABLE `calendar_blocks`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `created_by` (`created_by`);
 
 --
 -- Indexy pro tabulku `change_history`
@@ -215,16 +250,22 @@ ALTER TABLE `users`
 --
 
 --
+-- AUTO_INCREMENT pro tabulku `calendar_blocks`
+--
+ALTER TABLE `calendar_blocks`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT pro tabulku `change_history`
 --
 ALTER TABLE `change_history`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT pro tabulku `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=47;
 
 --
 -- AUTO_INCREMENT pro tabulku `order_notes`
@@ -253,6 +294,12 @@ ALTER TABLE `users`
 --
 -- Omezení pro exportované tabulky
 --
+
+--
+-- Omezení pro tabulku `calendar_blocks`
+--
+ALTER TABLE `calendar_blocks`
+  ADD CONSTRAINT `calendar_blocks_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`);
 
 --
 -- Omezení pro tabulku `change_history`
